@@ -1,0 +1,54 @@
+name: CajaAhorro - build y paquete de desarrollo
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Obtener codigo
+        uses: actions/checkout@v4
+      - name: Instalar .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restaurar dependencias
+        run: dotnet restore CajaAhorro.sln
+      - name: Compilar Release
+        run: dotnet build CajaAhorro.sln --configuration Release --no-restore
+      - name: Publicar binarios sin ejecutar la aplicacion
+        run: dotnet publish CajaAhorro.csproj --configuration Release --no-build --output "${{ runner.temp }}/cajaahorro-publish"
+      - name: Preparar paquete sin configuraciones sensibles
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = Join-Path '${{ runner.temp }}' 'cajaahorro-publish'
+          $out = Join-Path '${{ runner.temp }}' 'cajaahorro-package'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          Copy-Item -Path (Join-Path $source '*') -Destination $out -Recurse -Force
+          Get-ChildItem -Path $out -Filter 'appsettings*.json' -File | Remove-Item -Force
+          if (Test-Path (Join-Path $out 'web.config')) { Remove-Item (Join-Path $out 'web.config') -Force }
+          $sha = '${{ github.sha }}'
+          Set-Content -Path (Join-Path $out 'release-manifest.txt') -Value @("Repository=west2084/cajaahorro", "Commit=$sha", "Branch=${{ github.ref_name }}", "Build=Release", "Environment=development-package", "Deployment=NOT_PERFORMED")
+          $zip = Join-Path '${{ runner.temp }}' 'cajaahorro-${{ github.run_number }}.zip'
+          Compress-Archive -Path (Join-Path $out '*') -DestinationPath $zip -CompressionLevel Optimal
+          $hash = (Get-FileHash -Path $zip -Algorithm SHA256).Hash
+          Set-Content -Path (Join-Path '${{ runner.temp }}' 'SHA256.txt') -Value "$hash  $(Split-Path $zip -Leaf)"
+      - name: Guardar paquete de desarrollo
+        uses: actions/upload-artifact@v4
+        with:
+          name: cajaahorro-dev-${{ github.run_number }}
+          path: |
+            ${{ runner.temp }}/cajaahorro-${{ github.run_number }}.zip
+            ${{ runner.temp }}/SHA256.txt
+          retention-days: 14
+          if-no-files-found: error
