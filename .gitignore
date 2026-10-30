@@ -1,0 +1,29 @@
+# .NET / Visual Studio
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+TestResults/
+**/publish/
+artifacts/
+# Local and environment secrets (keep existing tracked configuration under review)
+appsettings.Development.json
+appsettings.Production.json
+appsettings.Local.json
+*.pfx
+*.p12
+*.key
+*.pem
+.env
+.env.*
+# Databases, backups and generated data
+*.bak
+*.bacpac
+*.mdf
+*.ldf
+*.db
+*.sqlite
+*.zip
+*.7z
+*.log
