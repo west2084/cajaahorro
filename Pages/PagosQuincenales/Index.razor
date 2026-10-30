@@ -1,0 +1,434 @@
+@page "/pagos-quincenales"
+@inject PagoQuincenalService PagoSvc
+@inject NavigationManager Nav
+@using Microsoft.AspNetCore.Components.Forms
+
+<PageTitle>Pagos Quincenales — Caja de Ahorro</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Importar pagos quincenales</h1>
+        <p class="text-muted">Carga un archivo por quincena — créditos y ahorro se aplican automáticamente</p>
+    </div>
+    <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/")'>
+        <i class="ti ti-arrow-left"></i> Regresar
+    </button>
+</div>
+
+<!-- ── Aviso explicativo ────────────────────────────────────────────────── -->
+<div class="aviso-info" style="max-width:760px; margin-bottom:1.5rem;">
+    <i class="ti ti-info-circle"></i>
+    <div>
+        <strong>¿Cómo funciona?</strong>
+        El sistema detecta automáticamente si el archivo es de
+        <strong>IMSS BIENESTAR</strong> (formato con NombreCto) o <strong>TTIB</strong>
+        (formato con columnas por quincena). Lee el número de quincena desde el nombre de la pestaña.
+        Si necesitas corregirlo puedes ajustarlo antes de importar.
+    </div>
+</div>
+
+<!-- ── Formulario de carga ──────────────────────────────────────────────── -->
+<div class="form-card" style="max-width:680px; margin-bottom:1.5rem;">
+    <h2 style="margin-bottom:1.25rem;">Archivo de pagos</h2>
+
+    <div class="form-group">
+        <label>Archivo Excel (.xlsx)</label>
+        <InputFile OnChange="OnArchivoSeleccionado" accept=".xlsx" />
+        @if (archivo is not null)
+        {
+            <span class="text-muted" style="font-size:12px; margin-top:4px; display:block;">
+                <i class="ti ti-file-spreadsheet"></i> @archivo.Name — @(archivo.Size / 1024) KB
+            </span>
+        }
+    </div>
+
+    @if (quincenaDetectada > 0)
+    {
+        <!-- Quincena detectada — editable -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:.75rem;">
+            <div class="form-group">
+                <label>Quincena detectada</label>
+                <select class="form-control" @bind="quincenaSeleccionada">
+                    @for (int i = 1; i <= 24; i++)
+                    {
+                        <option value="@i">QNA @i.ToString("D2")</option>
+                    }
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Año</label>
+                <select class="form-control" @bind="anioSeleccionado">
+                    @for (int y = 2024; y <= DateTime.Today.Year + 1; y++)
+                    {
+                        <option value="@y">@y</option>
+                    }
+                </select>
+            </div>
+        </div>
+
+        <div class="aviso-info" style="margin-top:.5rem; padding:.5rem .75rem; font-size:12px;">
+            <i class="ti ti-scan"></i>
+            <span>
+                Detectado: <strong>@pestanaDetectada</strong> · Formato: <strong>@formatoDetectado</strong>
+            </span>
+        </div>
+    }
+
+    <!-- Log de análisis previo -->
+    @if (logAnalisis.Any())
+    {
+        <div style="background:#f8f9fa; border:1px solid #e5e7eb; border-radius:6px;
+                    padding:10px; margin-top:.75rem; font-size:11px; font-family:monospace;
+                    max-height:140px; overflow-y:auto;">
+            @foreach (var l in logAnalisis)
+            {
+                <div style="color:@ColorLog(l)">@l</div>
+            }
+        </div>
+    }
+
+    <div class="form-actions" style="margin-top:1.25rem;">
+        <button class="btn-primary"
+                @onclick="Importar"
+                disabled="@(archivo is null || cargando || quincenaDetectada == 0)">
+            @if (cargando)
+            {
+                <span><i class="ti ti-loader-2"></i> Importando...</span>
+            }
+            else
+            {
+                <span><i class="ti ti-database-import"></i> Importar QNA @quincenaSeleccionada.ToString("D2")/@anioSeleccionado</span>
+            }
+        </button>
+        @if (archivo is not null)
+        {
+            <button class="btn-secondary" @onclick="Limpiar">
+                <i class="ti ti-x"></i> Cancelar
+            </button>
+        }
+    </div>
+</div>
+
+<!-- ── Resultado ─────────────────────────────────────────────────────────── -->
+@if (resultado is not null)
+{
+    <div class="form-card" style="max-width:760px; margin-bottom:1.5rem;">
+
+        <!-- Cabecera resultado -->
+        @if (resultado.Exitoso)
+        {
+            <div style="display:flex; align-items:center; gap:.6rem; margin-bottom:1.25rem;
+                        background:#f0fdf4; border:1px solid #86efac; border-radius:8px;
+                        padding:.7rem 1rem; font-size:13px;">
+                <i class="ti ti-circle-check" style="color:#16a34a; font-size:1.3rem;"></i>
+                <div>
+                    @if (resultado.EsReimportacion)
+                    {
+                        <strong>Reimportación</strong> <span>— datos de QNA @resultado.Quincena.ToString("D2")/@resultado.Anio actualizados correctamente.</span>
+                    }
+                    else
+                    {
+                        <strong>Importación exitosa</strong> <span>— QNA @resultado.Quincena.ToString("D2")/@resultado.Anio registrada.</span>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div style="display:flex; align-items:center; gap:.6rem; margin-bottom:1.25rem;
+                        background:#fef2f2; border:1px solid #fca5a5; border-radius:8px;
+                        padding:.7rem 1rem; font-size:13px;">
+                <i class="ti ti-alert-triangle" style="color:#dc2626; font-size:1.3rem;"></i>
+                <div><strong>Error al importar:</strong> @resultado.Error</div>
+            </div>
+        }
+
+        <!-- Estadísticas -->
+        <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:.75rem; margin-bottom:1.25rem;">
+            <div class="resultado-stat">
+                <span class="resultado-numero">@resultado.TotalLineasArchivo</span>
+                <span class="resultado-label">Líneas leídas</span>
+            </div>
+            <div class="resultado-stat">
+                <span class="resultado-numero" style="color:#059669;">@resultado.CreditosAplicados</span>
+                <span class="resultado-label">Créditos aplicados</span>
+            </div>
+            <div class="resultado-stat">
+                <span class="resultado-numero" style="color:#7c3aed;">@resultado.AhorrosAplicados</span>
+                <span class="resultado-label">Ahorros aplicados</span>
+            </div>
+            <div class="resultado-stat">
+                <span class="resultado-numero" style="color:#d97706;">@resultado.SociosNoEncontrados</span>
+                <span class="resultado-label">Sin match en caja</span>
+            </div>
+            <div class="resultado-stat">
+                <span class="resultado-numero" style="color:#9ca3af;">@resultado.LineasIgnoradas</span>
+                <span class="resultado-label">Ignoradas</span>
+            </div>
+        </div>
+
+        <!-- Importes -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:.75rem; margin-bottom:1rem;">
+            <div class="stat-card" style="border-left:3px solid #059669;">
+                <span class="stat-label">Importe créditos aplicados</span>
+                <span class="stat-valor" style="color:#059669; font-size:20px;">
+                    @resultado.ImporteCreditos.ToString("C")
+                </span>
+            </div>
+            <div class="stat-card" style="border-left:3px solid #7c3aed;">
+                <span class="stat-label">Importe ahorros aplicados</span>
+                <span class="stat-valor" style="color:#7c3aed; font-size:20px;">
+                    @resultado.ImporteAhorros.ToString("C")
+                </span>
+            </div>
+        </div>
+
+        <!-- Advertencias -->
+        @if (resultado.Advertencias.Any())
+        {
+            <details style="margin-bottom:.75rem;">
+                <summary style="cursor:pointer; font-size:12px; color:#d97706; user-select:none;">
+                    <i class="ti ti-alert-triangle"></i>
+                    @resultado.Advertencias.Count advertencia(s) — socios de la caja sin amortización en esta quincena
+                </summary>
+                <ul style="margin:.5rem 0 0 1rem; font-size:12px; color:#92400e;">
+                    @foreach (var w in resultado.Advertencias.Take(30))
+                    {
+                        <li>@w</li>
+                    }
+                    @if (resultado.Advertencias.Count > 30)
+                    {
+                        <li class="text-muted">... y @(resultado.Advertencias.Count - 30) más</li>
+                    }
+                </ul>
+            </details>
+        }
+
+        <!-- Log de proceso -->
+        <details>
+            <summary style="cursor:pointer; font-size:12px; color:#6b7280; user-select:none;">
+                <i class="ti ti-terminal"></i> Ver log de proceso (@resultado.Log.Count entradas)
+            </summary>
+            <div style="background:#f8f9fa; border:1px solid #e5e7eb; border-radius:6px;
+                        padding:10px; margin-top:.5rem; font-size:11px; font-family:monospace;
+                        max-height:220px; overflow-y:auto;">
+                @foreach (var l in resultado.Log)
+                {
+                    <div style="color:@ColorLog(l)">@l</div>
+                }
+            </div>
+        </details>
+
+        <!-- Acción siguiente -->
+        <div style="margin-top:1.25rem; display:flex; gap:.75rem;">
+            <button class="btn-primary" @onclick="Limpiar">
+                <i class="ti ti-upload"></i> Cargar otro archivo
+            </button>
+        </div>
+    </div>
+}
+
+<!-- ── Historial de importaciones ────────────────────────────────────────── -->
+@if (historial.Any())
+{
+    <div class="form-card" style="max-width:760px;">
+        <h2 style="margin-bottom:1rem;">Historial de archivos importados</h2>
+        <table class="tabla tabla-sm">
+            <thead>
+                <tr>
+                    <th>Quincena</th>
+                    <th>Archivo</th>
+                    <th>Formato</th>
+                    <th class="text-right">Créditos</th>
+                    <th class="text-right">Ahorros</th>
+                    <th class="text-right">$ Créditos</th>
+                    <th class="text-right">$ Ahorros</th>
+                    <th>Importado</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var h in historial)
+                {
+                    <tr>
+                        <td><strong>QNA @h.Quincena.ToString("D2")/@h.Anio</strong></td>
+                        <td style="font-size:11px; color:#6b7280; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                            @h.NombreArchivo
+                        </td>
+                        <td>
+                            <span class="badge @(h.Formato == "IMSS BIENESTAR" ? "badge-blue" : "badge-green")"
+                                  style="font-size:10px;">
+                                @h.Formato
+                            </span>
+                        </td>
+                        <td class="text-right">@h.CreditosAplicados</td>
+                        <td class="text-right">@h.AhorrosAplicados</td>
+                        <td class="text-right" style="color:#059669; font-weight:500;">
+                            @h.ImporteCreditos.ToString("C0")
+                        </td>
+                        <td class="text-right" style="color:#7c3aed; font-weight:500;">
+                            @h.ImporteAhorros.ToString("C0")
+                        </td>
+                        <td style="font-size:11px; color:#6b7280;">
+                            @h.FechaCarga.ToString("dd/MM/yy HH:mm")
+                            @if (h.VecesImportado > 1)
+                            {
+                                <span class="badge badge-yellow" style="font-size:10px; margin-left:4px;">
+                                    @h.VecesImportado×
+                                </span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private IBrowserFile? archivo;
+    private bool cargando;
+
+    private int    quincenaDetectada    = 0;
+    private int    quincenaSeleccionada = 1;
+    private int    anioSeleccionado     = DateTime.Today.Year;
+    private string pestanaDetectada     = "";
+    private string formatoDetectado     = "";
+
+    private List<string>                        logAnalisis = new();
+    private PagoQuincenalService.ResultadoImportacion? resultado;
+    private List<PagoQuincenalEncabezado>       historial   = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        historial = await PagoSvc.ObtenerHistorialAsync();
+    }
+
+    private async Task OnArchivoSeleccionado(InputFileChangeEventArgs e)
+    {
+        archivo            = e.File;
+        resultado          = null;
+        logAnalisis        = new();
+        quincenaDetectada  = 0;
+
+        // Pre-analizar el archivo para mostrar la quincena detectada antes de importar
+        logAnalisis.Add($"[INFO] Leyendo «{archivo.Name}»...");
+        try
+        {
+            using var stream = archivo.OpenReadStream(maxAllowedSize: 30 * 1024 * 1024);
+            using var ms     = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+
+            // Análisis rápido con ClosedXML
+            using var wb = new ClosedXML.Excel.XLWorkbook(ms);
+            var hoja = wb.Worksheets
+                .FirstOrDefault(ws =>
+                {
+                    var n = ws.Name.ToUpper().Trim();
+                    return !n.Contains("PRESTAMOS TTIB") && !n.Contains("HOJA")
+                        && !n.Contains("QNAS 20")
+                        && (n.Contains("QNA") || n.Contains("QUINCENA"));
+                })
+                ?? wb.Worksheets.FirstOrDefault();
+
+            if (hoja != null)
+            {
+                pestanaDetectada = hoja.Name;
+                var a1raw = hoja.Cell(1,1).GetValue<string>().Trim().ToUpper();
+                formatoDetectado = a1raw == "RFC" ? "IMSS BIENESTAR"
+                                 : a1raw.Contains("SERVICIOS DE SALUD") || a1raw.Contains("ZACATECAS") ? "SSZ"
+                                 : "TTIB / OPD";
+
+                // Extraer quincena del nombre de la pestaña
+                var match = System.Text.RegularExpressions.Regex.Match(
+                    hoja.Name, @"QNA\.?\s*(\d{1,2})\s*[/\-]?\s*(20\d{2})",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+                if (match.Success
+                    && int.TryParse(match.Groups[1].Value, out int q)
+                    && int.TryParse(match.Groups[2].Value, out int a))
+                {
+                    quincenaDetectada    = q;
+                    quincenaSeleccionada = q;
+                    anioSeleccionado     = a;
+                    logAnalisis.Add($"[OK] Pestaña: «{pestanaDetectada}» · Formato: {formatoDetectado} · QNA {q:D2}/{a}");
+                }
+                else
+                {
+                    quincenaDetectada    = 1;
+                    quincenaSeleccionada = 1;
+                    logAnalisis.Add($"[WARN] No se detectó quincena en el nombre «{hoja.Name}» — ajústala manualmente.");
+                }
+
+                var pestanas = string.Join(", ", wb.Worksheets.Select(w => $"«{w.Name}»"));
+                logAnalisis.Add($"[INFO] Pestañas en el archivo: {pestanas}");
+            }
+            else
+            {
+                logAnalisis.Add("[ERROR] No se encontró ninguna hoja válida.");
+            }
+        }
+        catch (Exception ex)
+        {
+            logAnalisis.Add($"[ERROR] {ex.Message}");
+        }
+    }
+
+    private async Task Importar()
+    {
+        if (archivo is null) return;
+
+        cargando  = true;
+        resultado = null;
+        var log   = new List<string>();
+        log.Add($"[INFO] Iniciando importación: {archivo.Name}");
+        StateHasChanged();
+
+        try
+        {
+            using var stream = archivo.OpenReadStream(maxAllowedSize: 30 * 1024 * 1024);
+            using var ms     = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+
+            resultado = await PagoSvc.ImportarAsync(
+                ms,
+                archivo.Name,
+                log,
+                quincenaOverride: quincenaSeleccionada,
+                anioOverride:     anioSeleccionado);
+
+            historial = await PagoSvc.ObtenerHistorialAsync();
+        }
+        catch (Exception ex)
+        {
+            resultado = new PagoQuincenalService.ResultadoImportacion
+            {
+                Exitoso = false,
+                Error   = ex.Message,
+                Log     = log,
+            };
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private void Limpiar()
+    {
+        archivo           = null;
+        resultado         = null;
+        logAnalisis       = new();
+        quincenaDetectada = 0;
+    }
+
+    private static string ColorLog(string line) => line switch
+    {
+        var l when l.StartsWith("[ERROR")  => "#dc2626",
+        var l when l.StartsWith("[WARN]")  => "#d97706",
+        var l when l.StartsWith("[OK]")    => "#16a34a",
+        var l when l.StartsWith("[NUEVO]") => "#0284c7",
+        _ => "#374151"
+    };
+}

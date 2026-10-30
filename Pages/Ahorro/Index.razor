@@ -1,0 +1,228 @@
+@page "/ahorro"
+@inject AhorroImportService AhorroSvc
+@inject NavigationManager Nav
+
+<PageTitle>Control de Ahorro — Caja de Ahorro</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Control de Ahorro</h1>
+        <p class="text-muted">Ciclo Navideño · Ciclo Escolar</p>
+    </div>
+    <div style="display:flex; gap:.5rem;">
+        <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/ahorro-importar")'>
+            <i class="ti ti-file-import"></i> Importar archivo
+        </button>
+    </div>
+</div>
+
+<!-- Filtro de año -->
+<div class="filtros" style="margin-bottom:1.5rem; flex-direction:column; align-items:flex-start; gap:.35rem;">
+    <div style="display:flex; align-items:center; gap:.5rem;">
+        <label style="font-size:13px; font-weight:600; color:#6b7280;">Año:</label>
+        <select class="select-filtro" @bind="anioFiltro" @bind:after="CargarDatos">
+            @for (int y = 2024; y <= DateTime.Today.Year + 1; y++)
+            {
+                <option value="@y">@y</option>
+            }
+        </select>
+    </div>
+    <span class="text-muted" style="font-size:11px;">
+        Navideño = enero–diciembre de @anioFiltro · Escolar = julio de @anioFiltro a junio de @(anioFiltro + 1)
+    </span>
+</div>
+
+@if (cargando)
+{
+    <div class="loading">Cargando...</div>
+}
+else
+{
+    <!-- Tarjetas resumen por ciclo -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:1.25rem; margin-bottom:1.5rem;">
+
+        <!-- NAVIDEÑO -->
+        @{ var nav = resumen.FirstOrDefault(r => r.Ciclo == CicloAhorro.Navideño); }
+        <div style="background:#fff; border:2px solid #c79a3a; border-radius:10px; padding:1.25rem;
+                    box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:1rem;">
+                <span style="font-size:1.6rem;">🌙</span>
+                <div>
+                    <div style="font-size:13px; font-weight:700; color:#92400e;">CICLO NAVIDEÑO @anioFiltro</div>
+                    <div style="font-size:11px; color:#9ca3af;">Enero – Diciembre</div>
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:.75rem;">
+                <div class="resumen-item">
+                    <span class="resumen-label">Quincenas importadas</span>
+                    <span class="resumen-valor">@(nav?.Quincenas ?? 0)</span>
+                </div>
+                <div class="resumen-item">
+                    <span class="resumen-label">Socios con ahorro</span>
+                    <span class="resumen-valor">@(nav?.TotalSocios ?? 0)</span>
+                </div>
+                <div class="resumen-item" style="grid-column:1/-1;">
+                    <span class="resumen-label">Total acumulado @anioFiltro</span>
+                    <span class="resumen-valor" style="color:#c79a3a; font-size:22px;">
+                        @((nav?.TotalImporte ?? 0).ToString("C0"))
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ESCOLAR -->
+        @{ var esc = resumen.FirstOrDefault(r => r.Ciclo == CicloAhorro.Escolar); }
+        <div style="background:#fff; border:2px solid #2563eb; border-radius:10px; padding:1.25rem;
+                    box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:1rem;">
+                <span style="font-size:1.6rem;">📚</span>
+                <div>
+                    <div style="font-size:13px; font-weight:700; color:#1e40af;">CICLO ESCOLAR @anioFiltro/@(anioFiltro + 1)</div>
+                    <div style="font-size:11px; color:#9ca3af;">Julio @anioFiltro – Junio @(anioFiltro + 1)</div>
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:.75rem;">
+                <div class="resumen-item">
+                    <span class="resumen-label">Quincenas importadas</span>
+                    <span class="resumen-valor">@(esc?.Quincenas ?? 0)</span>
+                </div>
+                <div class="resumen-item">
+                    <span class="resumen-label">Socios con ahorro</span>
+                    <span class="resumen-valor">@(esc?.TotalSocios ?? 0)</span>
+                </div>
+                <div class="resumen-item" style="grid-column:1/-1;">
+                    <span class="resumen-label">Total acumulado del ciclo</span>
+                    <span class="resumen-valor" style="color:#2563eb; font-size:22px;">
+                        @((esc?.TotalImporte ?? 0).ToString("C0"))
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Historial por quincena -->
+    @if (!historial.Any())
+    {
+        <div class="empty-state">
+            <i class="ti ti-piggy-bank"></i>
+            <p>No hay archivos de ahorro importados para @anioFiltro.</p>
+            <button class="btn-primary" style="margin-top:1rem;"
+                    @onclick='() => Nav.NavigateTo("/ahorro-importar")'>
+                <i class="ti ti-file-import"></i> Importar primer archivo
+            </button>
+        </div>
+    }
+    else
+    {
+        <!-- Filtro de ciclo -->
+        <div style="display:flex; align-items:center; gap:.75rem; margin-bottom:.75rem;">
+            <span style="font-size:13px; font-weight:600; color:#6b7280;">Ciclo:</span>
+            <button class="btn-@(cicloFiltro == null ? "primary" : "secondary")"
+                    style="padding:5px 14px; font-size:12px;"
+                    @onclick='() => { cicloFiltro = null; }'>Todos</button>
+            <button class="btn-@(cicloFiltro == CicloAhorro.Navideño ? "primary" : "secondary")"
+                    style="padding:5px 14px; font-size:12px;"
+                    @onclick='() => { cicloFiltro = CicloAhorro.Navideño; }'>🌙 Navideño</button>
+            <button class="btn-@(cicloFiltro == CicloAhorro.Escolar ? "primary" : "secondary")"
+                    style="padding:5px 14px; font-size:12px;"
+                    @onclick='() => { cicloFiltro = CicloAhorro.Escolar; }'>📚 Escolar</button>
+        </div>
+
+        <div class="table-container">
+            <table class="tabla">
+                <thead>
+                    <tr>
+                        <th>Quincena</th>
+                        <th>Ciclo</th>
+                        <th>Archivo</th>
+                        <th class="text-right">Socios</th>
+                        <th class="text-right">Importe</th>
+                        <th>Cargado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var h in HistorialFiltrado)
+                    {
+                        <tr>
+                            <td><strong>QNA @h.Quincena.ToString("D2")/@h.Anio</strong></td>
+                            <td>
+                                <span class="badge @(h.Ciclo == CicloAhorro.Navideño ? "badge-yellow" : "badge-blue")"
+                                      style="font-size:11px;">
+                                    @(h.Ciclo == CicloAhorro.Navideño ? "🌙 Navideño" : "📚 Escolar")
+                                </span>
+                            </td>
+                            <td style="font-size:11px; color:#6b7280; max-width:220px;
+                                       overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"
+                                title="@h.NombreArchivo">
+                                @h.NombreArchivo
+                            </td>
+                            <td class="text-right">@h.SociosEncontrados</td>
+                            <td class="text-right" style="color:#059669; font-weight:600;">
+                                @h.ImporteTotal.ToString("C0")
+                            </td>
+                            <td style="font-size:11px; color:#6b7280;">
+                                @h.FechaCarga.ToString("dd/MM/yy HH:mm")
+                                @if (h.VecesImportado > 1)
+                                {
+                                    <span class="badge badge-yellow" style="font-size:10px; margin-left:4px;">
+                                        @h.VecesImportado×
+                                    </span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn-icon" title="Reimportar"
+                                        @onclick='() => Nav.NavigateTo("/ahorro-importar")'>
+                                    <i class="ti ti-refresh"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr class="fila-totales">
+                        <td colspan="3"><strong>TOTAL @anioFiltro</strong></td>
+                        <td class="text-right">
+                            <strong>@HistorialFiltrado.Sum(h => h.SociosEncontrados)</strong>
+                        </td>
+                        <td class="text-right">
+                            <strong>@HistorialFiltrado.Sum(h => h.ImporteTotal).ToString("C0")</strong>
+                        </td>
+                        <td colspan="2"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <p class="text-muted" style="font-size:12px; margin-top:.5rem;">
+            @HistorialFiltrado.Count() registro(s) · Total:
+            <strong>@HistorialFiltrado.Sum(h => h.ImporteTotal).ToString("C")</strong>
+        </p>
+    }
+}
+
+@code {
+    private bool   cargando    = true;
+    private int    anioFiltro  = DateTime.Today.Year;
+    private CicloAhorro? cicloFiltro = null;
+
+    private List<AhorroEncabezado>            historial = new();
+    private List<AhorroImportService.ResumenCiclo> resumen  = new();
+
+    private IEnumerable<AhorroEncabezado> HistorialFiltrado =>
+        cicloFiltro.HasValue
+            ? historial.Where(h => h.Ciclo == cicloFiltro.Value)
+            : historial;
+
+    protected override async Task OnInitializedAsync()
+        => await CargarDatos();
+
+    private async Task CargarDatos()
+    {
+        cargando = true;
+        StateHasChanged();
+        historial = await AhorroSvc.ObtenerHistorialAsync(anioFiltro);
+        resumen   = await AhorroSvc.ObtenerResumenAnioAsync(anioFiltro);
+        cargando  = false;
+    }
+}

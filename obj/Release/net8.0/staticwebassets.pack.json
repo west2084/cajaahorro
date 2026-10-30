@@ -1,0 +1,29 @@
+{
+  "Files": [
+    {
+      "Id": "C:\\Users\\francisco.lopezv\\Downloads\\CajaAhorro_actualizado (3)\\CajaAhorro\\wwwroot\\css\\app.css",
+      "PackagePath": "staticwebassets\\css\\app.css"
+    },
+    {
+      "Id": "C:\\Users\\francisco.lopezv\\Downloads\\CajaAhorro_actualizado (3)\\CajaAhorro\\wwwroot\\img\\logo-sntsa.png",
+      "PackagePath": "staticwebassets\\img\\logo-sntsa.png"
+    },
+    {
+      "Id": "obj\\Release\\net8.0\\staticwebassets\\msbuild.CajaAhorro.Microsoft.AspNetCore.StaticWebAssets.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "Id": "obj\\Release\\net8.0\\staticwebassets\\msbuild.build.CajaAhorro.props",
+      "PackagePath": "build\\CajaAhorro.props"
+    },
+    {
+      "Id": "obj\\Release\\net8.0\\staticwebassets\\msbuild.buildMultiTargeting.CajaAhorro.props",
+      "PackagePath": "buildMultiTargeting\\CajaAhorro.props"
+    },
+    {
+      "Id": "obj\\Release\\net8.0\\staticwebassets\\msbuild.buildTransitive.CajaAhorro.props",
+      "PackagePath": "buildTransitive\\CajaAhorro.props"
+    }
+  ],
+  "ElementsToRemove": []
+}

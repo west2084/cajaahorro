@@ -1,0 +1,166 @@
+@page "/retenciones/tablero"
+@inject RetencionImportService RetencionSvc
+@inject NavigationManager Nav
+
+<PageTitle>Tablero de cargas — Créditos</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Tablero de cargas — Créditos</h1>
+        <p class="text-muted">Qué archivos de retenciones (SSZ / IMSS Bienestar) ya se cargaron y cuáles faltan, quincena por quincena.</p>
+    </div>
+    <div style="display:flex; gap:.5rem;">
+        <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/retenciones-qna")'>
+            <i class="ti ti-file-import"></i> Importar archivo
+        </button>
+    </div>
+</div>
+
+@if (cargando)
+{
+    <div class="loading">Cargando...</div>
+}
+else
+{
+    <!-- Filtro de rango -->
+    <div class="filtros" style="margin-bottom:1.25rem;">
+        <div style="display:flex; align-items:center; gap:.5rem;">
+            <label style="font-size:13px; font-weight:600; color:#6b7280;">Ver últimas:</label>
+            <select class="select-filtro" @bind="rango" @bind:after="Cargar">
+                <option value="6">6 quincenas</option>
+                <option value="12">12 quincenas</option>
+                <option value="24">24 quincenas (1 año)</option>
+                <option value="48">48 quincenas (2 años)</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Resumen -->
+    <div class="stats-row" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="stat-card">
+            <span class="stat-label">Quincenas revisadas</span>
+            <span class="stat-valor destacado">@tablero.Count</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Completas (SSZ + IMSS)</span>
+            <span class="stat-valor destacado" style="color:#059669;">@tablero.Count(t => t.Completa)</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Con archivo pendiente</span>
+            <span class="stat-valor destacado" style="color:@(pendientes.Any() ? "#dc2626" : "#059669");">
+                @tablero.Count(t => !t.Completa)
+            </span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Importe acumulado del rango</span>
+            <span class="stat-valor destacado">@tablero.Sum(t => t.ImporteTotal).ToString("C0")</span>
+        </div>
+    </div>
+
+    <!-- Pendientes -->
+    @if (pendientes.Any())
+    {
+        <div class="aviso-info" style="margin-top:1.25rem; border-left:3px solid #dc2626; background:#fef2f2;">
+            <i class="ti ti-alert-triangle" style="color:#dc2626;"></i>
+            <div>
+                <strong>Archivos pendientes de cargar:</strong>
+                <ul>
+                    @foreach (var p in pendientes)
+                    {
+                        <li>@p</li>
+                    }
+                </ul>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="aviso-info" style="margin-top:1.25rem; border-left:3px solid #059669; background:#f0fdf4;">
+            <i class="ti ti-circle-check" style="color:#059669;"></i>
+            <div>Todo cargado — no falta ningún archivo en el rango mostrado.</div>
+        </div>
+    }
+
+    <!-- Tabla -->
+    <div class="table-container" style="margin-top:1.25rem;">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Quincena</th>
+                    <th>SSZ (Servicios de Salud)</th>
+                    <th>IMSS Bienestar</th>
+                    <th class="text-right">Total quincena</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var t in tablero)
+                {
+                    <tr class="@(t.Completa ? "" : "fila-alerta")">
+                        <td>
+                            <strong>QNA @t.Quincena.ToString("D2")/@t.Anio</strong>
+                            @if (t.EsQuincenaActual)
+                            {
+                                <span class="badge badge-blue" style="font-size:9px; margin-left:4px;">ACTUAL</span>
+                            }
+                        </td>
+                        <td>
+                            @if (t.SszCargado)
+                            {
+                                <span class="badge badge-pago-aplicado">@t.SszImporte.ToString("C0")</span>
+                                <span class="text-muted" style="font-size:11px; margin-left:4px;">
+                                    @t.SszLineas líneas · @t.SszFecha?.ToString("dd/MM/yy")
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-pago-suspendido">FALTA</span>
+                            }
+                        </td>
+                        <td>
+                            @if (t.ImssCargado)
+                            {
+                                <span class="badge badge-pago-aplicado">@t.ImssImporte.ToString("C0")</span>
+                                <span class="text-muted" style="font-size:11px; margin-left:4px;">
+                                    @t.ImssLineas líneas · @t.ImssFecha?.ToString("dd/MM/yy")
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-pago-suspendido">FALTA</span>
+                            }
+                        </td>
+                        <td class="text-right" style="font-weight:600;">
+                            @(t.ImporteTotal > 0 ? t.ImporteTotal.ToString("C0") : "—")
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private bool cargando = true;
+    private int rango = 12;
+    private List<RetencionImportService.QuincenaCargaCredito> tablero = new();
+    private List<string> pendientes = new();
+
+    protected override async Task OnInitializedAsync() => await Cargar();
+
+    private async Task Cargar()
+    {
+        cargando = true;
+        tablero = await RetencionSvc.ObtenerTableroCargasAsync(rango);
+
+        pendientes = new List<string>();
+        foreach (var t in tablero.OrderByDescending(x => x.Anio).ThenByDescending(x => x.Quincena))
+        {
+            if (!t.SszCargado)
+                pendientes.Add($"QNA {t.Quincena:D2}/{t.Anio} — SSZ (Servicios de Salud)");
+            if (!t.ImssCargado)
+                pendientes.Add($"QNA {t.Quincena:D2}/{t.Anio} — IMSS Bienestar");
+        }
+
+        cargando = false;
+    }
+}

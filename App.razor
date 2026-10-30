@@ -1,0 +1,34 @@
+@using CajaAhorro.Shared
+@using Microsoft.AspNetCore.Components.Authorization
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    @if (context.User.Identity?.IsAuthenticated == true)
+                    {
+                        <LayoutView Layout="@typeof(MainLayout)">
+                            <div class="form-card" style="margin-top:2rem;text-align:center;padding:2rem;">
+                                <i class="ti ti-lock" style="font-size:2.5rem;color:#dc2626;"></i>
+                                <h2 style="margin:.5rem 0;">Acceso restringido</h2>
+                                <p class="text-muted">No tienes permisos para ver esta sección.</p>
+                            </div>
+                        </LayoutView>
+                    }
+                    else
+                    {
+                        <RedirectToLogin />
+                    }
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>No encontrado</PageTitle>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <p>La página no existe.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

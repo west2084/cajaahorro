@@ -1,0 +1,366 @@
+@page "/socios/nuevo"
+@inject SocioService SocioService
+@inject NavigationManager Nav
+
+<PageTitle>Nuevo socio — Caja de Ahorro</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Nuevo socio</h1>
+        <p class="text-muted">Registra un nuevo trabajador en la caja</p>
+    </div>
+    <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/socios")'>
+        <i class="ti ti-arrow-left"></i> Regresar
+    </button>
+</div>
+
+<div class="form-card" style="max-width:860px;">
+
+    <!-- SECCIÓN 1: Datos personales -->
+    <div class="form-section">
+        <h2>Datos personales</h2>
+        <div class="form-group">
+            <label>Nombre completo *</label>
+            <input type="text" @bind="socio.Nombre"
+                   placeholder="Apellido Paterno Apellido Materno Nombre(s)" />
+            @if (errores.ContainsKey("Nombre"))
+            {
+                <span class="campo-error">@errores["Nombre"]</span>
+            }
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>RFC *</label>
+                <input type="text" @bind="socio.RFC" placeholder="XXXX000000XXX" maxlength="13" />
+                @if (errores.ContainsKey("RFC"))
+                {
+                    <span class="campo-error">@errores["RFC"]</span>
+                }
+            </div>
+            <div class="form-group">
+                <label>CURP</label>
+                <input type="text" @bind="socio.CURP" placeholder="XXXX000000XXXXXX00" maxlength="18"
+                       style="text-transform:uppercase;" />
+            </div>
+        </div>
+        @* La cantidad solicitada ya NO se pide aquí: ese dato pertenece al
+           alta del crédito (Nuevo préstamo), no al alta del socio. *@
+    </div>
+
+    <!-- SECCIÓN 2: Adscripción -->
+    <div class="form-section">
+        <h2>Adscripción y nombramiento</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Institución *</label>
+                <select @bind="socio.InstitucionActual">
+                    <option value="@InstitucionTipo.Estatal">Secretaría de Salud (Estatal)</option>
+                    <option value="@InstitucionTipo.Federal">OPD (Federal)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Tipo de nombramiento *</label>
+                <select @bind="socio.TipoNombramiento">
+                    <option value="">-- Selecciona --</option>
+                    <option value="Federal">Federal</option>
+                    <option value="Homologado">Homologado</option>
+                    <option value="Regularizado">Regularizado</option>
+                    <option value="Formalizado">Formalizado</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Jornada laboral *</label>
+                <select @bind="socio.JornadaLaboral">
+                    <option value="">-- Selecciona --</option>
+                    <option value="Matutina">Matutina</option>
+                    <option value="Vespertina">Vespertina</option>
+                    <option value="Nocturna">Nocturna</option>
+                    <option value="Acumulada">Acumulada</option>
+                </select>
+                @if (errores.ContainsKey("JornadaLaboral"))
+                {
+                    <span class="campo-error">@errores["JornadaLaboral"]</span>
+                }
+            </div>
+            <div class="form-group" style="position:relative;">
+                <label>Adscripción (unidad / área)</label>
+                <input type="text" value="@socio.Adscripcion"
+                       @oninput="OnAdscripcionInput"
+                       @onfocus="() => mostrarAdscripciones = true"
+                       placeholder="Haz clic o escribe para buscar la unidad..."
+                       autocomplete="off" />
+                @if (mostrarAdscripciones)
+                {
+                    <div class="dropdown-adscripciones">
+                        @if (!adscripcionesFiltradas.Any())
+                        {
+                            <div class="dropdown-adscripcion-item text-muted">
+                                Sin coincidencias — se guardará lo que escribas.
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var a in adscripcionesFiltradas)
+                            {
+                                <div class="dropdown-adscripcion-item"
+                                     @onclick="() => SeleccionarAdscripcion(a)">
+                                    @a
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+                <span class="campo-hint" style="font-size:11px;color:#6b7280;">
+                    Elige una unidad del catálogo, o captura una si no aparece.
+                </span>
+            </div>
+        </div>
+
+        @* Capa invisible que cierra el desplegable al hacer clic fuera *@
+        @if (mostrarAdscripciones)
+        {
+            <div style="position:fixed;inset:0;z-index:10;" @onclick="() => mostrarAdscripciones = false"></div>
+        }
+    </div>
+
+    <!-- SECCIÓN 3: Domicilio -->
+    <div class="form-section">
+        <h2>Domicilio</h2>
+        <div class="form-row">
+            <div class="form-group" style="flex:2;">
+                <label>Calle</label>
+                <input type="text" @bind="socio.Calle" placeholder="Nombre de la calle" />
+            </div>
+            <div class="form-group" style="flex:1;">
+                <label>Número</label>
+                <input type="text" @bind="socio.Numero" placeholder="Ext / Int" />
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Colonia</label>
+                <input type="text" @bind="socio.Colonia" />
+            </div>
+            <div class="form-group">
+                <label>Municipio</label>
+                <input type="text" @bind="socio.Municipio" />
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Localidad</label>
+                <input type="text" @bind="socio.Localidad" />
+            </div>
+            <div class="form-group">
+                <label>Código postal</label>
+                <input type="text" @bind="socio.CodigoPostal" maxlength="5" placeholder="00000" />
+            </div>
+        </div>
+    </div>
+
+    <!-- SECCIÓN 4: Contacto -->
+    <div class="form-section">
+        <h2>Datos de contacto</h2>
+        <div class="form-row-3">
+            <div class="form-group">
+                <label>Teléfono fijo</label>
+                <input type="tel" @bind="socio.TelefonoFijo" placeholder="492 000 0000" />
+            </div>
+            <div class="form-group">
+                <label>Teléfono celular</label>
+                <input type="tel" @bind="socio.TelefonoCelular" placeholder="492 000 0000" />
+            </div>
+            <div class="form-group">
+                <label>Correo electrónico</label>
+                <input type="email" @bind="socio.CorreoElectronico" placeholder="correo@ejemplo.com" />
+            </div>
+        </div>
+    </div>
+
+    @* ── Resumen de errores SIEMPRE visible junto a los botones ─────────── *@
+    @if (errores.Any() || !string.IsNullOrEmpty(errorGeneral))
+    {
+        <div class="alert-error" style="margin-bottom:1rem;border:1px solid #fecaca;
+                    background:#fef2f2;color:#b91c1c;border-radius:8px;
+                    padding:.75rem 1rem;font-size:13px;">
+            <strong><i class="ti ti-alert-circle"></i> No se pudo guardar:</strong>
+            <ul style="margin:.4rem 0 0;padding-left:1.25rem;">
+                @foreach (var e in errores.Values)
+                {
+                    <li>@e</li>
+                }
+                @if (!string.IsNullOrEmpty(errorGeneral))
+                {
+                    <li>@errorGeneral</li>
+                }
+            </ul>
+        </div>
+    }
+
+    @* ── Socio desactivado con el mismo RFC: ofrecer reactivar ──────────── *@
+    @if (socioInactivo is not null)
+    {
+        <div style="margin-bottom:1rem;border:1px solid #fde68a;background:#fffbeb;
+                    color:#92400e;border-radius:8px;padding:.75rem 1rem;font-size:13px;">
+            <strong><i class="ti ti-alert-triangle"></i> Este RFC ya existe pero está desactivado:</strong>
+            <div style="margin:.35rem 0;">
+                @socioInactivo.Nombre — registrado el @socioInactivo.FechaRegistro.ToString("dd/MM/yyyy")
+            </div>
+            <button class="btn-primary" style="margin-top:.35rem;" @onclick="ReactivarYActualizar"
+                    disabled="@guardando">
+                <i class="ti ti-user-check"></i> Reactivarlo y actualizar con estos datos
+            </button>
+        </div>
+    }
+
+    <div class="form-actions">
+        <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/socios")'>
+            Cancelar
+        </button>
+        <button class="btn-primary" @onclick="Guardar" disabled="@guardando">
+            @if (guardando)
+            {
+                <span>Guardando...</span>
+            }
+            else
+            {
+                <span><i class="ti ti-device-floppy"></i> Guardar socio</span>
+            }
+        </button>
+    </div>
+</div>
+
+@code {
+    private Socio socio = new()
+    {
+        Activo = true,
+        InstitucionActual = InstitucionTipo.Estatal,
+        TipoNombramiento = "",
+        JornadaLaboral = ""
+    };
+
+    private bool guardando = false;
+    private string errorGeneral = "";
+    private Dictionary<string, string> errores = new();
+    private Socio? socioInactivo;
+
+    // ── Buscador de adscripciones ────────────────────────────────────────────
+    private bool mostrarAdscripciones = false;
+    private List<string> adscripcionesFiltradas =
+        CajaAhorro.Helpers.CatalogoAdscripciones.Todas.Take(50).ToList();
+
+    private void OnAdscripcionInput(ChangeEventArgs e)
+    {
+        var texto = e.Value?.ToString() ?? "";
+        socio.Adscripcion = texto;
+        mostrarAdscripciones = true;
+
+        var t = texto.Trim().ToUpper();
+        adscripcionesFiltradas = string.IsNullOrEmpty(t)
+            ? CajaAhorro.Helpers.CatalogoAdscripciones.Todas.Take(50).ToList()
+            : CajaAhorro.Helpers.CatalogoAdscripciones.Todas
+                .Where(a => a.ToUpper().Contains(t))
+                .Take(50)
+                .ToList();
+    }
+
+    private void SeleccionarAdscripcion(string a)
+    {
+        socio.Adscripcion = a;
+        mostrarAdscripciones = false;
+    }
+
+    private async Task Guardar()
+    {
+        errores.Clear();
+        errorGeneral = "";
+        socioInactivo = null;
+
+        if (string.IsNullOrWhiteSpace(socio.Nombre))
+            errores["Nombre"] = "El nombre es obligatorio.";
+
+        if (string.IsNullOrWhiteSpace(socio.RFC))
+            errores["RFC"] = "El RFC es obligatorio.";
+        else if (socio.RFC.Trim().Length < 12)
+            errores["RFC"] = "El RFC debe tener al menos 12 caracteres.";
+
+        if (string.IsNullOrWhiteSpace(socio.JornadaLaboral))
+            errores["JornadaLaboral"] = "Selecciona la jornada laboral.";
+
+        if (errores.Any()) return;
+
+        guardando = true;
+        try
+        {
+            // No bloqueamos si el RFC existe como Provisional: el servicio lo completa.
+            // Solo es duplicado si ya estaba capturado (Completo).
+            await SocioService.CrearOCompletarAsync(socio);
+            Nav.NavigateTo("/socios");
+        }
+        catch (SocioDuplicadoException ex)
+        {
+            if (!ex.Existente.Activo)
+            {
+                // Existe pero está desactivado: no aparece en el catálogo,
+                // así que ofrecemos reactivarlo en lugar de rechazar en silencio.
+                socioInactivo = ex.Existente;
+                errores["RFC"] = $"El RFC pertenece a un socio desactivado ({ex.Existente.Nombre}).";
+            }
+            else
+            {
+                errores["RFC"] = $"Ya existe un socio capturado con este RFC: {ex.Existente.Nombre}.";
+            }
+            guardando = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            // Mostramos también la excepción interna: ahí aparece el error real de SQL.
+            var detalle = ex.InnerException?.Message ?? ex.Message;
+            errorGeneral = $"Error al guardar: {detalle}";
+            guardando = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ReactivarYActualizar()
+    {
+        if (socioInactivo is null) return;
+
+        guardando = true;
+        try
+        {
+            // Reutilizamos el registro existente: copiamos los datos capturados
+            // y lo reactivamos. NUNCA creamos un segundo socio con el mismo RFC.
+            socioInactivo.Nombre            = socio.Nombre;
+            socioInactivo.CURP               = socio.CURP;
+            socioInactivo.Adscripcion       = socio.Adscripcion;
+            socioInactivo.InstitucionActual = socio.InstitucionActual;
+            socioInactivo.TipoNombramiento  = socio.TipoNombramiento;
+            socioInactivo.JornadaLaboral    = socio.JornadaLaboral;
+            socioInactivo.Calle             = socio.Calle;
+            socioInactivo.Numero            = socio.Numero;
+            socioInactivo.Colonia           = socio.Colonia;
+            socioInactivo.Municipio         = socio.Municipio;
+            socioInactivo.Localidad         = socio.Localidad;
+            socioInactivo.CodigoPostal      = socio.CodigoPostal;
+            socioInactivo.TelefonoFijo      = socio.TelefonoFijo;
+            socioInactivo.TelefonoCelular   = socio.TelefonoCelular;
+            socioInactivo.CorreoElectronico = socio.CorreoElectronico;
+            socioInactivo.EstadoCaptura     = EstadoCaptura.Completo;
+            socioInactivo.Activo            = true;
+
+            await SocioService.ActualizarAsync(socioInactivo);
+            Nav.NavigateTo("/socios");
+        }
+        catch (Exception ex)
+        {
+            var detalle = ex.InnerException?.Message ?? ex.Message;
+            errorGeneral = $"Error al reactivar: {detalle}";
+            guardando = false;
+            StateHasChanged();
+        }
+    }
+}

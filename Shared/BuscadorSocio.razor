@@ -1,0 +1,119 @@
+@inject SocioService SocioService
+
+<div class="buscador-socio">
+    @if (SocioSeleccionado is null)
+    {
+        <div class="form-group" style="margin-bottom:0;">
+            @if (!string.IsNullOrEmpty(Label))
+            {
+                <label>@Label</label>
+            }
+            <input type="text"
+                   placeholder="Buscar por nombre, RFC o clave..."
+                   value="@termino"
+                   @oninput="OnInput"
+                   @onfocus="OnFocus"
+                   @onblur="OnBlur"
+                   autocomplete="off" />
+
+            @if (mostrarResultados && resultados.Any())
+            {
+                <div class="dropdown-resultados">
+                    @foreach (var s in resultados)
+                    {
+                        <div class="dropdown-item" @onmousedown="() => Seleccionar(s)">
+                            <strong>@s.Nombre</strong>
+                            <span>@s.RFC · @s.TipoNombramiento · @s.Adscripcion</span>
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (mostrarResultados && termino.Length >= 2 && !resultados.Any() && !buscando)
+            {
+                <div class="dropdown-resultados">
+                    <div class="dropdown-vacio">
+                        <i class="ti ti-user-off"></i>
+                        No se encontró ningún socio.
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="socio-seleccionado">
+            <div class="socio-info">
+                <i class="ti ti-user-check"></i>
+                <div>
+                    <strong>@SocioSeleccionado.Nombre</strong>
+                    <span>@SocioSeleccionado.RFC · @SocioSeleccionado.TipoNombramiento · @SocioSeleccionado.Adscripcion</span>
+                </div>
+            </div>
+            @if (Editable)
+            {
+                <button class="btn-icon" type="button" @onclick="Limpiar" title="Cambiar socio">
+                    <i class="ti ti-x"></i>
+                </button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Socio? SocioSeleccionado { get; set; }
+    [Parameter] public EventCallback<Socio?> SocioSeleccionadoChanged { get; set; }
+    [Parameter] public string Label { get; set; } = "Buscar socio";
+    [Parameter] public bool Editable { get; set; } = true;
+
+    private string termino = "";
+    private List<Socio> resultados = new();
+    private bool mostrarResultados = false;
+    private bool buscando = false;
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        termino = e.Value?.ToString() ?? "";
+        mostrarResultados = true;
+
+        if (termino.Length < 2)
+        {
+            resultados.Clear();
+            return;
+        }
+
+        buscando = true;
+        resultados = await SocioService.BuscarAsync(termino);
+        buscando = false;
+    }
+
+    private void OnFocus()
+    {
+        if (termino.Length >= 2)
+            mostrarResultados = true;
+    }
+
+    private void OnBlur()
+    {
+        Task.Delay(200).ContinueWith(_ =>
+        {
+            mostrarResultados = false;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private async Task Seleccionar(Socio s)
+    {
+        termino = "";
+        resultados.Clear();
+        mostrarResultados = false;
+        await SocioSeleccionadoChanged.InvokeAsync(s);
+    }
+
+    private async Task Limpiar()
+    {
+        termino = "";
+        resultados.Clear();
+        await SocioSeleccionadoChanged.InvokeAsync(null);
+    }
+}

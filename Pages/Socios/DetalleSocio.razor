@@ -1,0 +1,229 @@
+@page "/socios/{Id:int}"
+@inject SocioService SocioService
+@inject NavigationManager Nav
+
+<PageTitle>Detalle de socio — Caja de Ahorro</PageTitle>
+
+@if (cargando)
+{
+    <div class="loading">Cargando...</div>
+}
+else if (socio is null)
+{
+    <div class="loading">Socio no encontrado.</div>
+}
+else
+{
+    <div class="page-header">
+        <div>
+            <h1>@socio.Nombre</h1>
+            <p class="text-muted">
+                @socio.RFC
+                @if (!string.IsNullOrWhiteSpace(socio.CURP))
+                {
+                    <text> · CURP @socio.CURP</text>
+                }
+                · @socio.TipoNombramiento · @socio.JornadaLaboral
+            </p>
+        </div>
+        <div style="display:flex; gap:0.5rem;">
+            <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/socios")'>
+                <i class="ti ti-arrow-left"></i> Regresar
+            </button>
+            <button class="btn-secondary" @onclick='() => Nav.NavigateTo($"/socios/{socio.Id}/editar")'>
+                <i class="ti ti-pencil"></i> Editar
+            </button>
+            <button class="btn-primary" @onclick='() => Nav.NavigateTo($"/prestamos/nuevo/{socio.Id}")'>
+                <i class="ti ti-plus"></i> Nuevo préstamo
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <span class="stat-label">Institución</span>
+            <span class="stat-valor">
+                <span class="badge badge-@socio.InstitucionActual.ToString().ToLower()">
+                    @(socio.InstitucionActual == InstitucionTipo.Estatal ? "Secretaría de Salud" : "OPD Federal")
+                </span>
+            </span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Préstamos activos</span>
+            <span class="stat-valor destacado">
+                @socio.Prestamos.Count(p => p.Status == StatusPrestamo.Activo)
+            </span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Total prestado</span>
+            <span class="stat-valor destacado">
+                @socio.Prestamos.Sum(p => p.ImporteOtorgado).ToString("C")
+            </span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Total ahorrado</span>
+            <span class="stat-valor destacado" style="color:#059669;">
+                @socio.Ahorros.Sum(a => a.MontoRetenido).ToString("C")
+            </span>
+        </div>
+    </div>
+
+    <!-- Datos del socio en dos columnas -->
+    <div class="detalle-grid" style="margin-top:1.25rem;">
+
+        <!-- Adscripción -->
+        <div class="detalle-card">
+            <h3>Adscripción</h3>
+            <div class="detalle-fila"><span>Adscripción</span><strong>@socio.Adscripcion</strong></div>
+            <div class="detalle-fila"><span>Nombramiento</span><strong>@socio.TipoNombramiento</strong></div>
+            <div class="detalle-fila"><span>Jornada</span><strong>@socio.JornadaLaboral</strong></div>
+            <div class="detalle-fila"><span>Cantidad solicitada</span>
+                <strong>@(socio.CantidadSolicitada.HasValue ? socio.CantidadSolicitada.Value.ToString("C") : "—")</strong>
+            </div>
+            <div class="detalle-fila"><span>Registrado el</span><strong>@socio.FechaRegistro.ToString("dd/MM/yyyy")</strong></div>
+        </div>
+
+        <!-- Domicilio -->
+        <div class="detalle-card">
+            <h3>Domicilio y contacto</h3>
+            <div class="detalle-fila">
+                <span>Domicilio</span>
+                <strong>
+                    @if (!string.IsNullOrEmpty(socio.Calle))
+                    {
+                        @($"{socio.Calle} {socio.Numero}, {socio.Colonia}")
+                    }
+                    else { <text>—</text> }
+                </strong>
+            </div>
+            <div class="detalle-fila">
+                <span>Municipio / CP</span>
+                <strong>
+                    @if (!string.IsNullOrEmpty(socio.Municipio))
+                    {
+                        @($"{socio.Municipio}, {socio.Localidad} C.P. {socio.CodigoPostal}")
+                    }
+                    else { <text>—</text> }
+                </strong>
+            </div>
+            <div class="detalle-fila"><span>Tel. fijo</span><strong>@(string.IsNullOrEmpty(socio.TelefonoFijo) ? "—" : socio.TelefonoFijo)</strong></div>
+            <div class="detalle-fila"><span>Celular</span><strong>@(string.IsNullOrEmpty(socio.TelefonoCelular) ? "—" : socio.TelefonoCelular)</strong></div>
+            <div class="detalle-fila"><span>Correo</span><strong>@(string.IsNullOrEmpty(socio.CorreoElectronico) ? "—" : socio.CorreoElectronico)</strong></div>
+        </div>
+    </div>
+
+    <!-- Historial de préstamos -->
+    <div style="margin-top:1.5rem;">
+        <h2 style="font-size:16px;font-weight:600;margin-bottom:1rem;">Historial de préstamos</h2>
+
+        @if (!socio.Prestamos.Any())
+        {
+            <div class="empty-state">
+                <i class="ti ti-credit-card-off"></i>
+                <p>Este socio no tiene préstamos registrados.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-container">
+                <table class="tabla">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th class="text-right">Importe</th>
+                            <th class="text-right">Pago Qna.</th>
+                            <th>Inicio</th>
+                            <th>Final</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in socio.Prestamos.OrderByDescending(x => x.FechaSolicitud))
+                        {
+                            <tr>
+                                <td>@p.TipoPrestamo</td>
+                                <td class="text-right">@p.ImporteOtorgado.ToString("C")</td>
+                                <td class="text-right">@p.PagoQuincenal.ToString("C")</td>
+                                <td>QNA @p.QuincenaInicial.ToString("D2")/@p.AnioInicial</td>
+                                <td>QNA @p.QuincenaFinal.ToString("D2")/@p.AnioFinal</td>
+                                <td>
+                                    <span class="badge badge-@p.Status.ToString().ToLower()">@p.Status</span>
+                                </td>
+                                <td>
+                                    <button class="btn-icon"
+                                            @onclick='() => Nav.NavigateTo($"/prestamos/{p.Id}")'>
+                                        <i class="ti ti-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <!-- Historial de ahorro -->
+    <div id="ahorro" style="margin-top:1.5rem;">
+        <h2 style="font-size:16px;font-weight:600;margin-bottom:1rem;">Historial de ahorro</h2>
+
+        @if (!socio.Ahorros.Any())
+        {
+            <div class="empty-state">
+                <i class="ti ti-piggy-bank"></i>
+                <p>Este socio no tiene ahorro registrado.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-container">
+                <table class="tabla">
+                    <thead>
+                        <tr>
+                            <th>Quincena</th>
+                            <th>Ciclo</th>
+                            <th class="text-right">Monto retenido</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in socio.Ahorros.OrderByDescending(x => x.Anio * 100 + x.Quincena))
+                        {
+                            <tr>
+                                <td>QNA @a.Quincena.ToString("D2")/@a.Anio</td>
+                                <td>
+                                    <span class="badge @(a.Ciclo == CicloAhorro.Navideño ? "badge-yellow" : "badge-blue")">
+                                        @(a.Ciclo == CicloAhorro.Navideño ? "🌙 Navideño" : "📚 Escolar")
+                                    </span>
+                                </td>
+                                <td class="text-right">@a.MontoRetenido.ToString("C")</td>
+                                <td>@a.Status</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr class="fila-totales">
+                            <td colspan="2"><strong>TOTAL</strong></td>
+                            <td class="text-right"><strong>@socio.Ahorros.Sum(a => a.MontoRetenido).ToString("C")</strong></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private Socio? socio;
+    private bool cargando = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        socio = await SocioService.ObtenerPorIdAsync(Id);
+        cargando = false;
+    }
+}

@@ -1,0 +1,183 @@
+@page "/prestamos/tablero"
+@inject PrestamoService PrestamoSvc
+@inject NavigationManager Nav
+
+<PageTitle>Tablero de préstamos por año</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Tablero de préstamos por año</h1>
+        <p class="text-muted">Cuántos préstamos se otorgaron cada año y cuántos de sus pagos ya se reflejaron en el listado.</p>
+    </div>
+    <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/prestamos")'>
+        <i class="ti ti-credit-card"></i> Todos los préstamos
+    </button>
+</div>
+
+@if (cargando)
+{
+    <div class="loading">Cargando...</div>
+}
+else
+{
+    <!-- Filtro de status: con muchos años acumulados, ver "solo vigentes"
+         evita que el histórico de liquidados/cancelados sature la vista. -->
+    <div class="filtros" style="margin-bottom:1.25rem;">
+        <div style="display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;">
+            <label style="font-size:13px; font-weight:600; color:#6b7280;">Ver:</label>
+            <select class="select-filtro" @bind="filtroStatusStr" @bind:after="Cargar">
+                <option value="">Todos los créditos (@TotalGeneral)</option>
+                <option value="Activo">Vigentes / Activos (@ConteoStatus(StatusPrestamo.Activo))</option>
+                <option value="Liquidado">Liquidados (@ConteoStatus(StatusPrestamo.Liquidado))</option>
+                <option value="Reestructurado">Reestructurados (@ConteoStatus(StatusPrestamo.Reestructurado))</option>
+                <option value="Cancelado">Cancelados (@ConteoStatus(StatusPrestamo.Cancelado))</option>
+            </select>
+        </div>
+    </div>
+
+    @if (!resumen.Any())
+    {
+        <div class="loading">No hay créditos con este filtro.</div>
+    }
+    else
+    {
+    <!-- Resumen general -->
+    <div class="stats-row" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="stat-card">
+            <span class="stat-label">Préstamos otorgados (total)</span>
+            <span class="stat-valor destacado">@resumen.Sum(r => r.TotalPrestamos)</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Importe otorgado (total)</span>
+            <span class="stat-valor destacado">@resumen.Sum(r => r.ImporteOtorgado).ToString("C0")</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Pagos esperados (total)</span>
+            <span class="stat-valor destacado">@resumen.Sum(r => r.PagosEsperados).ToString("N0")</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Pagos reflejados (total)</span>
+            <span class="stat-valor destacado" style="color:#059669;">
+                @resumen.Sum(r => r.PagosReflejados).ToString("N0")
+                <span class="text-muted" style="font-size:12px; font-weight:400;">
+                    (@PorcentajeGeneral.ToString("N1")%)
+                </span>
+            </span>
+        </div>
+    </div>
+
+    <!-- Tabla por año -->
+    <div class="table-container" style="margin-top:1.5rem;">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Año</th>
+                    <th class="text-right">Préstamos otorgados</th>
+                    <th class="text-right">Importe otorgado</th>
+                    <th>Status</th>
+                    <th style="min-width:220px;">Pagos reflejados</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in resumen)
+                {
+                    <tr>
+                        <td><strong>@r.Anio</strong></td>
+                        <td class="text-right">@r.TotalPrestamos</td>
+                        <td class="text-right">@r.ImporteOtorgado.ToString("C0")</td>
+                        <td>
+                            <div style="display:flex; gap:4px; flex-wrap:wrap;">
+                                @if (r.Activos > 0)
+                                {
+                                    <span class="badge badge-activo" title="Activos">@r.Activos activos</span>
+                                }
+                                @if (r.Liquidados > 0)
+                                {
+                                    <span class="badge badge-liquidado" title="Liquidados">@r.Liquidados liq.</span>
+                                }
+                                @if (r.Reestructurados > 0)
+                                {
+                                    <span class="badge badge-reestructurado" title="Reestructurados">@r.Reestructurados reest.</span>
+                                }
+                                @if (r.Cancelados > 0)
+                                {
+                                    <span class="badge badge-cancelado" title="Cancelados">@r.Cancelados canc.</span>
+                                }
+                            </div>
+                        </td>
+                        <td>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <div style="flex:1; background:#e5e7eb; border-radius:6px; height:8px; overflow:hidden;">
+                                    <div style="width:@r.PorcentajeAvance.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)%;
+                                                height:100%; background:@ColorAvance(r.PorcentajeAvance);"></div>
+                                </div>
+                                <span style="font-size:12px; white-space:nowrap; color:#374151;">
+                                    @r.PagosReflejados.ToString("N0")/@r.PagosEsperados.ToString("N0")
+                                    (@r.PorcentajeAvance.ToString("N1")%)
+                                </span>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="fila-totales">
+                    <td>TOTAL</td>
+                    <td class="text-right">@resumen.Sum(r => r.TotalPrestamos)</td>
+                    <td class="text-right">@resumen.Sum(r => r.ImporteOtorgado).ToString("C0")</td>
+                    <td></td>
+                    <td>@resumen.Sum(r => r.PagosReflejados).ToString("N0")/@resumen.Sum(r => r.PagosEsperados).ToString("N0")</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <p class="text-muted" style="font-size:11px; margin-top:.75rem;">
+        "Pagos reflejados" cuenta cualquier quincena de la tabla de amortización que ya no está en
+        <span class="badge badge-pago-pendiente" style="font-size:9px;">Pendiente</span> — incluye Aplicado, Diferencia y Suspendido.
+    </p>
+    }
+}
+
+@code {
+    private bool cargando = true;
+    private List<PrestamoService.ResumenAnioPrestamos> resumen = new();
+    private Dictionary<StatusPrestamo, int> conteosStatus = new();
+    private string filtroStatusStr = "";
+    private StatusPrestamo? filtroStatus =>
+        Enum.TryParse<StatusPrestamo>(filtroStatusStr, out var s) ? s : (StatusPrestamo?)null;
+
+    private int TotalGeneral => conteosStatus.Values.Sum();
+    private int ConteoStatus(StatusPrestamo s) => conteosStatus.TryGetValue(s, out var n) ? n : 0;
+
+    private decimal PorcentajeGeneral
+    {
+        get
+        {
+            var esperados = resumen.Sum(r => r.PagosEsperados);
+            var reflejados = resumen.Sum(r => r.PagosReflejados);
+            return esperados > 0 ? Math.Round((decimal)reflejados / esperados * 100, 1) : 0;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        conteosStatus = await PrestamoSvc.ContarPorStatusAsync();
+        await Cargar();
+    }
+
+    private async Task Cargar()
+    {
+        cargando = true;
+        resumen = await PrestamoSvc.ObtenerResumenPorAnioAsync(filtroStatus);
+        cargando = false;
+    }
+
+    private static string ColorAvance(decimal pct) => pct switch
+    {
+        >= 90 => "#059669",
+        >= 60 => "#2563eb",
+        >= 30 => "#d97706",
+        _ => "#dc2626"
+    };
+}

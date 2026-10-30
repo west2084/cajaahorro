@@ -1,0 +1,118 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+<div class="sidebar">
+    <div class="sidebar-header">
+        <img src="/img/logo-sntsa.png" alt="SNTSA" class="sidebar-logo" />
+        <div>
+            <span class="sidebar-title">Caja de Ahorro</span>
+            <span class="sidebar-sub">SNTSA · Sección 39</span>
+        </div>
+    </div>
+
+    <nav class="nav-menu">
+        <NavLink class="nav-item" href="/" Match="NavLinkMatch.All">
+            <i class="ti ti-layout-dashboard"></i> Dashboard
+        </NavLink>
+
+        <div class="nav-group-label">Préstamos</div>
+        <NavLink class="nav-item" href="/prestamos">
+            <i class="ti ti-credit-card"></i> Todos los préstamos
+        </NavLink>
+        <NavLink class="nav-item" href="/prestamos/nuevo">
+            <i class="ti ti-plus"></i> Nuevo préstamo
+        </NavLink>
+        <NavLink class="nav-item" href="/prestamos/tablero">
+            <i class="ti ti-chart-bar"></i> Tablero por año
+        </NavLink>
+
+        <div class="nav-group-label">Socios</div>
+        <NavLink class="nav-item" href="/socios">
+            <i class="ti ti-users"></i> Catálogo de socios
+        </NavLink>
+        <NavLink class="nav-item" href="/socios/nuevo">
+            <i class="ti ti-user-plus"></i> Nuevo socio
+        </NavLink>
+
+        <div class="nav-group-label">Ahorro</div>
+        <NavLink class="nav-item" href="/ahorro" Match="NavLinkMatch.All">
+            <i class="ti ti-piggy-bank"></i> Control de ahorro
+        </NavLink>
+        <NavLink class="nav-item" href="/ahorro-importar">
+            <i class="ti ti-file-import"></i> Importar ahorro
+        </NavLink>
+        <NavLink class="nav-item" href="/ahorro/tablero">
+            <i class="ti ti-clipboard-check"></i> Tablero de cargas
+        </NavLink>
+
+        <div class="nav-group-label">Retenciones</div>
+        <NavLink class="nav-item" href="/retenciones-qna">
+            <i class="ti ti-file-import"></i> Importar retenciones
+        </NavLink>
+        <NavLink class="nav-item" href="/retenciones-manual">
+            <i class="ti ti-pencil-plus"></i> Captura manual
+        </NavLink>
+        <NavLink class="nav-item" href="/retenciones/tablero">
+            <i class="ti ti-clipboard-check"></i> Tablero de cargas
+        </NavLink>
+
+        <div class="nav-group-label">Reportes</div>
+        <NavLink class="nav-item" href="/reportes">
+            <i class="ti ti-file-spreadsheet"></i> Reportes Excel
+        </NavLink>
+
+        <AuthorizeView Roles="Administrador">
+            <div class="nav-group-label">Configuración</div>
+            <NavLink class="nav-item" href="/carga-inicial">
+                <i class="ti ti-database-import"></i> Carga inicial 2025
+            </NavLink>
+            <NavLink class="nav-item" href="/usuarios">
+                <i class="ti ti-shield-lock"></i> Usuarios del sistema
+            </NavLink>
+        </AuthorizeView>
+    </nav>
+
+    <AuthorizeView>
+        <Authorized>
+            <div class="sidebar-user">
+                <div class="sidebar-user-info">
+                    <i class="ti ti-user-circle" style="font-size:1.5rem;"></i>
+                    <div>
+                        <span class="sidebar-user-name">
+                            @(context.User.FindFirst(System.Security.Claims.ClaimTypes.GivenName)?.Value
+                              ?? context.User.Identity?.Name)
+                        </span>
+                        <span class="sidebar-user-role">
+                            @context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
+                        </span>
+                    </div>
+                </div>
+                <a class="sidebar-logout" href="/logout" title="Cerrar sesión">
+                    <i class="ti ti-logout"></i>
+                </a>
+            </div>
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+<style>
+    .sidebar { display: flex; flex-direction: column; }
+    .sidebar .nav-menu { flex: 1; }
+    .sidebar-user {
+        margin-top: auto;
+        padding: .75rem .9rem;
+        border-top: 1px solid rgba(255,255,255,.12);
+        display: flex; align-items: center; justify-content: space-between;
+        gap: .5rem;
+    }
+    .sidebar-user-info { display: flex; align-items: center; gap: .55rem; min-width: 0; }
+    .sidebar-user-name {
+        display: block; font-size: 13px; font-weight: 600;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px;
+    }
+    .sidebar-user-role { display: block; font-size: 11px; opacity: .65; }
+    .sidebar-logout {
+        color: inherit; opacity: .7; font-size: 1.15rem; text-decoration: none;
+        padding: .35rem; border-radius: 6px;
+    }
+    .sidebar-logout:hover { opacity: 1; background: rgba(255,255,255,.08); }
+</style>

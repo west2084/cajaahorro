@@ -1,0 +1,369 @@
+@page "/usuarios"
+@attribute [Authorize(Roles = "Administrador")]
+@inject UsuarioService UsuarioSvc
+
+<PageTitle>Usuarios — Caja de Ahorro</PageTitle>
+
+<style>
+    .modal-backdrop {
+        position: fixed; inset: 0; background: rgba(17,24,39,.45);
+        z-index: 1000; overflow-y: auto;
+    }
+</style>
+
+<div class="page-header">
+    <div>
+        <h1>Usuarios del sistema</h1>
+        <p class="text-muted">Cuentas con acceso al sistema (no confundir con socios)</p>
+    </div>
+    <button class="btn-primary" @onclick="AbrirNuevo">
+        <i class="ti ti-user-plus"></i> Nuevo usuario
+    </button>
+</div>
+
+@if (!string.IsNullOrEmpty(mensaje))
+{
+    <div class="form-card" style="border-left:3px solid @(esError ? "#dc2626" : "#059669");
+                margin-bottom:1rem;padding:.75rem 1rem;font-size:13px;">
+        <i class="ti @(esError ? "ti-alert-circle" : "ti-circle-check")"></i> @mensaje
+    </div>
+}
+
+@if (cargando)
+{
+    <p class="text-muted" style="margin-top:2rem;text-align:center;">
+        <i class="ti ti-loader-2"></i> Cargando...
+    </p>
+}
+else
+{
+    <div class="form-card" style="padding:0;overflow:hidden;">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Usuario</th>
+                    <th>Nombre completo</th>
+                    <th>Rol</th>
+                    <th>Último acceso</th>
+                    <th>Status</th>
+                    <th class="text-right">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var u in usuarios)
+                {
+                    <tr>
+                        <td style="font-weight:600;">@u.NombreUsuario</td>
+                        <td>@u.NombreCompleto</td>
+                        <td>
+                            @if (u.Rol == RolUsuario.Administrador)
+                            {
+                                <span class="badge badge-reestructurado">Administrador</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-liquidado">Operador</span>
+                            }
+                        </td>
+                        <td class="text-muted">
+                            @(u.UltimoAcceso?.ToString("dd/MM/yyyy HH:mm") ?? "Nunca")
+                        </td>
+                        <td>
+                            @if (u.Activo)
+                            {
+                                <span class="badge badge-activo">Activo</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-cancelado">Inactivo</span>
+                            }
+                        </td>
+                        <td class="text-right">
+                            <button class="btn-icon" title="Editar datos"
+                                    @onclick="() => AbrirEditar(u)">
+                                <i class="ti ti-pencil"></i>
+                            </button>
+                            <button class="btn-icon" title="Cambiar contraseña"
+                                    @onclick="() => AbrirCambioPassword(u)">
+                                <i class="ti ti-key"></i>
+                            </button>
+                            <button class="btn-icon" title="@(u.Activo ? "Desactivar" : "Activar")"
+                                    @onclick="() => ToggleActivo(u)">
+                                <i class="ti @(u.Activo ? "ti-user-off" : "ti-user-check")"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@* ── Modal: nuevo usuario ─────────────────────────────────────────────── *@
+@if (mostrarNuevo)
+{
+    <div class="modal-backdrop" @onclick="CerrarModales">
+        <div class="form-card" style="max-width:420px;margin:8vh auto;" @onclick:stopPropagation="true">
+            <h2 style="margin-top:0;">Nuevo usuario</h2>
+
+            <div class="form-group">
+                <label>Nombre de usuario</label>
+                <input class="form-control" @bind="nuevoNombreUsuario"
+                       placeholder="ej. sandra" />
+            </div>
+            <div class="form-group">
+                <label>Nombre completo</label>
+                <input class="form-control" @bind="nuevoNombreCompleto"
+                       placeholder="Nombre y apellidos" />
+            </div>
+            <div class="form-group">
+                <label>Contraseña (mínimo 6 caracteres)</label>
+                <input class="form-control" type="password" @bind="nuevoPassword" />
+            </div>
+            <div class="form-group">
+                <label>Rol</label>
+                <select class="form-control" @bind="nuevoRol">
+                    <option value="@RolUsuario.Operador">Operador — operación diaria</option>
+                    <option value="@RolUsuario.Administrador">Administrador — todo + usuarios</option>
+                </select>
+            </div>
+
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">
+                <button class="btn-secondary" @onclick="CerrarModales">Cancelar</button>
+                <button class="btn-primary" @onclick="GuardarNuevo" disabled="@guardando">
+                    <i class="ti ti-device-floppy"></i> Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Modal: editar datos de usuario ──────────────────────────────────── *@
+@if (usuarioEditando is not null)
+{
+    <div class="modal-backdrop" @onclick="CerrarModales">
+        <div class="form-card" style="max-width:420px;margin:8vh auto;" @onclick:stopPropagation="true">
+            <h2 style="margin-top:0;">Editar usuario</h2>
+
+            <div class="form-group">
+                <label>Nombre de usuario</label>
+                <input class="form-control" @bind="editNombreUsuario" />
+            </div>
+            <div class="form-group">
+                <label>Nombre completo</label>
+                <input class="form-control" @bind="editNombreCompleto" />
+            </div>
+            <div class="form-group">
+                <label>Rol</label>
+                <select class="form-control" @bind="editRol">
+                    <option value="@RolUsuario.Operador">Operador — operación diaria</option>
+                    <option value="@RolUsuario.Administrador">Administrador — todo + usuarios</option>
+                </select>
+            </div>
+
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">
+                <button class="btn-secondary" @onclick="CerrarModales" disabled="@guardando">Cancelar</button>
+                <button class="btn-primary" @onclick="GuardarEditar" disabled="@guardando">
+                    <i class="ti ti-device-floppy"></i> Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Modal: cambiar contraseña ────────────────────────────────────────── *@
+@if (usuarioPassword is not null)
+{
+    <div class="modal-backdrop" @onclick="CerrarModales">
+        <div class="form-card" style="max-width:420px;margin:8vh auto;" @onclick:stopPropagation="true">
+            <h2 style="margin-top:0;">Cambiar contraseña</h2>
+            <p class="text-muted" style="font-size:13px;">
+                Usuario: <strong>@usuarioPassword.NombreUsuario</strong>
+            </p>
+            <div class="form-group">
+                <label>Nueva contraseña (mínimo 6 caracteres)</label>
+                <input class="form-control" type="password" @bind="passwordNuevo" />
+            </div>
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">
+                <button class="btn-secondary" @onclick="CerrarModales">Cancelar</button>
+                <button class="btn-primary" @onclick="GuardarPassword" disabled="@guardando">
+                    <i class="ti ti-key"></i> Actualizar
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool cargando = true;
+    private bool guardando = false;
+    private string mensaje = "";
+    private bool esError = false;
+
+    private List<Usuario> usuarios = new();
+
+    // Modal nuevo
+    private bool mostrarNuevo = false;
+    private string nuevoNombreUsuario = "";
+    private string nuevoNombreCompleto = "";
+    private string nuevoPassword = "";
+    private RolUsuario nuevoRol = RolUsuario.Operador;
+
+    // Modal password
+    private Usuario? usuarioPassword;
+    private string passwordNuevo = "";
+
+    // Modal editar datos
+    private Usuario? usuarioEditando;
+    private string editNombreUsuario = "";
+    private string editNombreCompleto = "";
+    private RolUsuario editRol;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Recargar();
+    }
+
+    private async Task Recargar()
+    {
+        cargando = true;
+        usuarios = await UsuarioSvc.ObtenerTodosAsync();
+        cargando = false;
+    }
+
+    private void AbrirNuevo()
+    {
+        nuevoNombreUsuario = "";
+        nuevoNombreCompleto = "";
+        nuevoPassword = "";
+        nuevoRol = RolUsuario.Operador;
+        mensaje = "";
+        mostrarNuevo = true;
+    }
+
+    private void AbrirCambioPassword(Usuario u)
+    {
+        usuarioPassword = u;
+        passwordNuevo = "";
+        mensaje = "";
+    }
+
+    private void AbrirEditar(Usuario u)
+    {
+        usuarioEditando = u;
+        editNombreUsuario = u.NombreUsuario;
+        editNombreCompleto = u.NombreCompleto;
+        editRol = u.Rol;
+        mensaje = "";
+    }
+
+    private void CerrarModales()
+    {
+        if (guardando) return;
+        mostrarNuevo = false;
+        usuarioPassword = null;
+        usuarioEditando = null;
+    }
+
+    private async Task GuardarNuevo()
+    {
+        guardando = true;
+        try
+        {
+            var (ok, msg) = await UsuarioSvc.CrearAsync(
+                nuevoNombreUsuario, nuevoNombreCompleto, nuevoPassword, nuevoRol);
+
+            mensaje = msg;
+            esError = !ok;
+
+            if (ok)
+            {
+                mostrarNuevo = false;
+                await Recargar();
+            }
+        }
+        catch (Exception ex)
+        {
+            mensaje = $"Error al crear usuario: {ex.Message}";
+            esError = true;
+        }
+        finally
+        {
+            guardando = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GuardarEditar()
+    {
+        if (usuarioEditando is null) return;
+
+        guardando = true;
+        try
+        {
+            var (ok, msg) = await UsuarioSvc.EditarDatosAsync(
+                usuarioEditando.Id, editNombreUsuario, editNombreCompleto, editRol);
+
+            mensaje = msg;
+            esError = !ok;
+
+            if (ok)
+            {
+                usuarioEditando = null;
+                await Recargar();
+            }
+        }
+        catch (Exception ex)
+        {
+            mensaje = $"Error al editar usuario: {ex.Message}";
+            esError = true;
+        }
+        finally
+        {
+            guardando = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GuardarPassword()
+    {
+        if (usuarioPassword is null) return;
+
+        guardando = true;
+        try
+        {
+            var (ok, msg) = await UsuarioSvc.CambiarPasswordAsync(usuarioPassword.Id, passwordNuevo);
+            mensaje = msg;
+            esError = !ok;
+
+            if (ok) usuarioPassword = null;
+        }
+        catch (Exception ex)
+        {
+            mensaje = $"Error al cambiar contraseña: {ex.Message}";
+            esError = true;
+        }
+        finally
+        {
+            guardando = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ToggleActivo(Usuario u)
+    {
+        try
+        {
+            var (ok, msg) = await UsuarioSvc.CambiarActivoAsync(u.Id, !u.Activo);
+            mensaje = msg;
+            esError = !ok;
+            await Recargar();
+        }
+        catch (Exception ex)
+        {
+            mensaje = $"Error: {ex.Message}";
+            esError = true;
+            StateHasChanged();
+        }
+    }
+}

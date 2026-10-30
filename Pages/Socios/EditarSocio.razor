@@ -1,0 +1,308 @@
+@page "/socios/{Id:int}/editar"
+@inject SocioService SocioService
+@inject NavigationManager Nav
+
+<PageTitle>Editar socio — Caja de Ahorro</PageTitle>
+
+@if (cargando)
+{
+    <div class="loading">Cargando...</div>
+}
+else
+{
+    <div class="page-header">
+        <div>
+            <h1>Editar socio</h1>
+            <p class="text-muted">@socio.Nombre</p>
+        </div>
+        <div style="display:flex; gap:0.5rem;">
+            <button class="btn-secondary" @onclick='() => Nav.NavigateTo($"/socios/{socio.Id}")'>
+                <i class="ti ti-arrow-left"></i> Regresar
+            </button>
+        </div>
+    </div>
+
+    <div class="form-card" style="max-width:860px;">
+
+        <!-- SECCIÓN 1: Datos personales -->
+        <div class="form-section">
+            <h2>Datos personales</h2>
+            <div class="form-group">
+                <label>Nombre completo *</label>
+                <input type="text" @bind="socio.Nombre" />
+                @if (errores.ContainsKey("Nombre"))
+                {
+                    <span class="campo-error">@errores["Nombre"]</span>
+                }
+            </div>
+            <div class="form-row-3">
+                <div class="form-group">
+                    <label>RFC *</label>
+                    <input type="text" @bind="socio.RFC" maxlength="13" />
+                    @if (errores.ContainsKey("RFC"))
+                    {
+                        <span class="campo-error">@errores["RFC"]</span>
+                    }
+                </div>
+                <div class="form-group">
+                    <label>CURP</label>
+                    <input type="text" @bind="socio.CURP" maxlength="18" style="text-transform:uppercase;" />
+                </div>
+                <div class="form-group">
+                    <label>Cantidad solicitada ($)</label>
+                    <input type="number" @bind="socio.CantidadSolicitada" min="0" step="100" />
+                </div>
+            </div>
+        </div>
+
+        <!-- SECCIÓN 2: Adscripción -->
+        <div class="form-section">
+            <h2>Adscripción y nombramiento</h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Institución *</label>
+                    <select value="@socio.InstitucionActual" @onchange="OnInstitucionChange">
+                        <option value="Estatal">Secretaría de Salud (Estatal)</option>
+                        <option value="Federal">OPD (Federal)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Tipo de nombramiento *</label>
+                    <select value="@socio.TipoNombramiento" @onchange="OnNombramientoChange">
+                        <option value="">-- Selecciona --</option>
+                        <option value="Federal">Federal</option>
+                        <option value="Homologado">Homologado</option>
+                        <option value="Regularizado">Regularizado</option>
+                        <option value="Formalizado">Formalizado</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Jornada laboral *</label>
+                    <select value="@socio.JornadaLaboral" @onchange="OnJornadaChange">
+                        <option value="">-- Selecciona --</option>
+                        <option value="Matutina">Matutina</option>
+                        <option value="Vespertina">Vespertina</option>
+                        <option value="Nocturna">Nocturna</option>
+                        <option value="Acumulada">Acumulada</option>
+                    </select>
+                </div>
+                <div class="form-group" style="position:relative;">
+                    <label>Adscripción (unidad / área)</label>
+                    <input type="text" value="@socio.Adscripcion"
+                           @oninput="OnAdscripcionInput"
+                           @onfocus="() => mostrarAdscripciones = true"
+                           placeholder="Haz clic o escribe para buscar la unidad..."
+                           autocomplete="off" />
+                    @if (mostrarAdscripciones)
+                    {
+                        <div class="dropdown-adscripciones">
+                            @if (!adscripcionesFiltradas.Any())
+                            {
+                                <div class="dropdown-adscripcion-item text-muted">
+                                    Sin coincidencias — se guardará lo que escribas.
+                                </div>
+                            }
+                            else
+                            {
+                                @foreach (var a in adscripcionesFiltradas)
+                                {
+                                    <div class="dropdown-adscripcion-item"
+                                         @onclick="() => SeleccionarAdscripcion(a)">
+                                        @a
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+                @if (mostrarAdscripciones)
+                {
+                    <div style="position:fixed;inset:0;z-index:10;" @onclick="() => mostrarAdscripciones = false"></div>
+                }
+            </div>
+        </div>
+
+        <!-- SECCIÓN 3: Domicilio -->
+        <div class="form-section">
+            <h2>Domicilio</h2>
+            <div class="form-row">
+                <div class="form-group" style="flex:2;">
+                    <label>Calle</label>
+                    <input type="text" @bind="socio.Calle" />
+                </div>
+                <div class="form-group" style="flex:1;">
+                    <label>Número</label>
+                    <input type="text" @bind="socio.Numero" />
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Colonia</label>
+                    <input type="text" @bind="socio.Colonia" />
+                </div>
+                <div class="form-group">
+                    <label>Municipio</label>
+                    <input type="text" @bind="socio.Municipio" />
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Localidad</label>
+                    <input type="text" @bind="socio.Localidad" />
+                </div>
+                <div class="form-group">
+                    <label>Código postal</label>
+                    <input type="text" @bind="socio.CodigoPostal" maxlength="5" />
+                </div>
+            </div>
+        </div>
+
+        <!-- SECCIÓN 4: Contacto -->
+        <div class="form-section">
+            <h2>Datos de contacto</h2>
+            <div class="form-row-3">
+                <div class="form-group">
+                    <label>Teléfono fijo</label>
+                    <input type="tel" @bind="socio.TelefonoFijo" />
+                </div>
+                <div class="form-group">
+                    <label>Teléfono celular</label>
+                    <input type="tel" @bind="socio.TelefonoCelular" />
+                </div>
+                <div class="form-group">
+                    <label>Correo electrónico</label>
+                    <input type="email" @bind="socio.CorreoElectronico" />
+                </div>
+            </div>
+        </div>
+
+        <!-- SECCIÓN 5: Status -->
+        <div class="form-section">
+            <h2>Status</h2>
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" @bind="socio.Activo" />
+                    Socio activo
+                </label>
+                <p class="campo-hint">Los socios inactivos no aparecen al buscar para un nuevo préstamo.</p>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button class="btn-secondary" @onclick='() => Nav.NavigateTo($"/socios/{socio.Id}")'>
+                Cancelar
+            </button>
+            <button class="btn-primary" @onclick="Guardar" disabled="@guardando">
+                @if (guardando)
+                {
+                    <span>Guardando...</span>
+                }
+                else
+                {
+                    <span><i class="ti ti-device-floppy"></i> Guardar cambios</span>
+                }
+            </button>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorGeneral))
+        {
+            <div class="alert-error" style="margin-top:1rem;">@errorGeneral</div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Socio socio = new();
+    private bool cargando = true;
+    private bool guardando = false;
+    private string errorGeneral = "";
+    private Dictionary<string, string> errores = new();
+
+    // ── Buscador de adscripciones ────────────────────────────────────────────
+    private bool mostrarAdscripciones = false;
+    private List<string> adscripcionesFiltradas =
+        CajaAhorro.Helpers.CatalogoAdscripciones.Todas.Take(50).ToList();
+
+    private void OnAdscripcionInput(ChangeEventArgs e)
+    {
+        var texto = e.Value?.ToString() ?? "";
+        socio.Adscripcion = texto;
+        mostrarAdscripciones = true;
+
+        var t = texto.Trim().ToUpper();
+        adscripcionesFiltradas = string.IsNullOrEmpty(t)
+            ? CajaAhorro.Helpers.CatalogoAdscripciones.Todas.Take(50).ToList()
+            : CajaAhorro.Helpers.CatalogoAdscripciones.Todas
+                .Where(a => a.ToUpper().Contains(t))
+                .Take(50)
+                .ToList();
+    }
+
+    private void SeleccionarAdscripcion(string a)
+    {
+        socio.Adscripcion = a;
+        mostrarAdscripciones = false;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var encontrado = await SocioService.ObtenerPorIdAsync(Id);
+        if (encontrado is null)
+        {
+            Nav.NavigateTo("/socios");
+            return;
+        }
+        socio = encontrado;
+        cargando = false;
+    }
+
+    private void OnInstitucionChange(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<InstitucionTipo>(e.Value?.ToString(), out var val))
+            socio.InstitucionActual = val;
+    }
+
+    private void OnNombramientoChange(ChangeEventArgs e)
+        => socio.TipoNombramiento = e.Value?.ToString() ?? "";
+
+    private void OnJornadaChange(ChangeEventArgs e)
+        => socio.JornadaLaboral = e.Value?.ToString() ?? "";
+
+    private async Task Guardar()
+    {
+        errores.Clear();
+        errorGeneral = "";
+
+        if (string.IsNullOrWhiteSpace(socio.Nombre))
+            errores["Nombre"] = "El nombre es obligatorio.";
+
+        if (string.IsNullOrWhiteSpace(socio.RFC))
+            errores["RFC"] = "El RFC es obligatorio.";
+        else if (socio.RFC.Trim().Length < 12)
+            errores["RFC"] = "El RFC debe tener al menos 12 caracteres.";
+
+        if (errores.Any()) return;
+
+        if (await SocioService.ExisteRFCAsync(socio.RFC, socio.Id))
+        {
+            errores["RFC"] = "Ya existe un socio con este RFC.";
+            return;
+        }
+
+        guardando = true;
+        try
+        {
+            await SocioService.ActualizarAsync(socio);
+            Nav.NavigateTo($"/socios/{socio.Id}");
+        }
+        catch (Exception ex)
+        {
+            errorGeneral = $"Error al guardar: {ex.Message}";
+            guardando = false;
+        }
+    }
+}

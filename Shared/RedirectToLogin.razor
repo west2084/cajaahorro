@@ -1,0 +1,20 @@
+@inject NavigationManager Nav
+
+<p class="text-muted" style="margin-top:2rem;text-align:center;">
+    <i class="ti ti-loader-2"></i> Redirigiendo al inicio de sesión...
+</p>
+
+@code {
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // OnAfterRender NO se ejecuta durante el prerenderizado, así que aquí
+        // ya estamos en el circuito interactivo y NavigateTo no lanza
+        // NavigationException.
+        // forceLoad: true — el login es una Razor Page clásica, fuera del
+        // circuito Blazor, y necesita una petición HTTP completa.
+        var returnUrl = Uri.EscapeDataString(new Uri(Nav.Uri).PathAndQuery);
+        Nav.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: true);
+    }
+}

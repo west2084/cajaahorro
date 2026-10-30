@@ -1,0 +1,257 @@
+@page "/prestamos"
+@inject PrestamoService PrestamoService
+@inject NavigationManager Nav
+
+<PageTitle>Préstamos — Caja de Ahorro</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Préstamos</h1>
+        <p class="text-muted">Cartera activa y seguimiento de créditos</p>
+    </div>
+    <button class="btn-primary" @onclick='() => Nav.NavigateTo("/prestamos/nuevo")'>
+        <i class="ti ti-plus"></i> Nuevo préstamo
+    </button>
+</div>
+
+@if (cargando)
+{
+    <div class="loading">Cargando préstamos...</div>
+}
+else
+{
+    <!-- Filtros -->
+    <div class="filtros">
+        <input type="text" placeholder="Buscar por nombre o RFC..."
+               @bind="filtroTexto" @bind:event="oninput" class="input-busqueda" />
+
+        <select @bind="filtroStatus" class="select-filtro">
+            <option value="">Todos los status</option>
+            <option value="Activo">Activo</option>
+            <option value="Liquidado">Liquidado</option>
+            <option value="Cancelado">Cancelado</option>
+            <option value="Reestructurado">Reestructurado</option>
+        </select>
+
+        <select @bind="filtroTipo" class="select-filtro">
+            <option value="">Todos los tipos</option>
+            <option value="Ordinario">Ordinario</option>
+            <option value="Reestructura">Reestructura</option>
+        </select>
+    </div>
+
+    <!-- Tabla -->
+    <div class="table-container">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th class="th-sortable" @onclick='() => Ordenar("Nombre")'>Nombre @Flecha("Nombre")</th>
+                    <th class="th-sortable" @onclick='() => Ordenar("Tipo")'>Tipo @Flecha("Tipo")</th>
+                    <th class="th-sortable" @onclick='() => Ordenar("Base")'>Base @Flecha("Base")</th>
+                    <th class="th-sortable text-right" @onclick='() => Ordenar("Importe")'>Importe @Flecha("Importe")</th>
+                    <th class="th-sortable text-right" @onclick='() => Ordenar("Pago")'>Pago Qna. @Flecha("Pago")</th>
+                    <th class="th-sortable" @onclick='() => Ordenar("Inicio")'>Qna. Inicio @Flecha("Inicio")</th>
+                    <th class="th-sortable" @onclick='() => Ordenar("Final")'>Qna. Final @Flecha("Final")</th>
+                    <th class="th-sortable" @onclick='() => Ordenar("Fecha")'>Fecha @Flecha("Fecha")</th>
+                    <th class="th-sortable" @onclick='() => Ordenar("Status")'>Status @Flecha("Status")</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in PaginaActualItems)
+                {
+                    <tr>
+                        <td>
+                            <span class="nombre-socio">@p.Socio.Nombre</span>
+                            <span class="rfc-socio">
+                                @p.Socio.RFC
+                                @if (!string.IsNullOrEmpty(p.Folio))
+                                {
+                                    <text> · @p.Folio</text>
+                                }
+                            </span>
+                        </td>
+                        <td>@p.TipoPrestamo</td>
+                        <td>@p.Socio.TipoNombramiento</td>
+                        <td class="text-right">@p.ImporteOtorgado.ToString("C")</td>
+                        <td class="text-right">@p.PagoQuincenal.ToString("C")</td>
+                        <td>@PrestamoService.FormatoQuincena(p.QuincenaInicial, p.AnioInicial)</td>
+                        <td>@PrestamoService.FormatoQuincena(p.QuincenaFinal, p.AnioFinal)</td>
+                        <td>@p.FechaSolicitud.ToString("dd/MM/yyyy")</td>
+                        <td><span class="badge badge-@p.Status.ToString().ToLower()">@p.Status</span></td>
+                        <td>
+                            <button class="btn-icon" @onclick='() => Nav.NavigateTo($"/prestamos/{p.Id}")'>
+                                <i class="ti ti-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+                @if (TotalRegistros == 0)
+                {
+                    <tr>
+                        <td colspan="10" class="text-center text-muted">No se encontraron préstamos</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Footer + paginador -->
+    <div class="table-footer paginador">
+        <div class="paginador-info">
+            @if (TotalRegistros > 0)
+            {
+                <span class="text-muted">
+                    Mostrando @(DesdeRegistro)–@(HastaRegistro) de @TotalRegistros registro(s)
+                </span>
+            }
+            else
+            {
+                <span class="text-muted">0 registros</span>
+            }
+        </div>
+
+        <div class="paginador-controles">
+            <label class="text-muted paginador-tamano">
+                Por página:
+                <select @bind="TamanoPagina" class="select-filtro select-sm">
+                    @foreach (var n in opcionesTamano)
+                    {
+                        <option value="@n">@n</option>
+                    }
+                </select>
+            </label>
+
+            <button class="btn-icon" disabled="@(PaginaActual <= 1)" @onclick="Primera" title="Primera">
+                <i class="ti ti-chevrons-left"></i>
+            </button>
+            <button class="btn-icon" disabled="@(PaginaActual <= 1)" @onclick="Anterior" title="Anterior">
+                <i class="ti ti-chevron-left"></i>
+            </button>
+
+            <span class="paginador-pagina">Página @PaginaActual de @TotalPaginas</span>
+
+            <button class="btn-icon" disabled="@(PaginaActual >= TotalPaginas)" @onclick="Siguiente" title="Siguiente">
+                <i class="ti ti-chevron-right"></i>
+            </button>
+            <button class="btn-icon" disabled="@(PaginaActual >= TotalPaginas)" @onclick="Ultima" title="Última">
+                <i class="ti ti-chevrons-right"></i>
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Prestamo> prestamos = new();
+    private bool cargando = true;
+
+    // Filtros
+    private string _filtroTexto = "";
+    private string _filtroStatus = "";
+    private string _filtroTipo = "";
+
+    private string filtroTexto { get => _filtroTexto; set { _filtroTexto = value; paginaActual = 1; } }
+    private string filtroStatus { get => _filtroStatus; set { _filtroStatus = value; paginaActual = 1; } }
+    private string filtroTipo { get => _filtroTipo; set { _filtroTipo = value; paginaActual = 1; } }
+
+    // Orden (por defecto: últimos préstamos otorgados primero)
+    private string ordenCol = "Fecha";
+    private bool ordenDesc = true;
+
+    // Paginación
+    private int paginaActual = 1;
+    private int tamanoPagina = 25;
+    private readonly int[] opcionesTamano = { 10, 25, 50, 100 };
+
+    private int TamanoPagina
+    {
+        get => tamanoPagina;
+        set { tamanoPagina = value; paginaActual = 1; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        prestamos = await PrestamoService.ObtenerTodosAsync();
+        cargando = false;
+    }
+
+    // 1) Filtrado
+    private IEnumerable<Prestamo> Filtrados => prestamos
+        .Where(p =>
+            (string.IsNullOrEmpty(filtroTexto) ||
+             p.Socio.Nombre.Contains(filtroTexto, StringComparison.OrdinalIgnoreCase) ||
+             p.Socio.RFC.Contains(filtroTexto, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrEmpty(filtroStatus) || p.Status.ToString() == filtroStatus) &&
+            (string.IsNullOrEmpty(filtroTipo) || p.TipoPrestamo.ToString() == filtroTipo));
+
+    // 2) Ordenamiento
+    private IEnumerable<Prestamo> Ordenados
+    {
+        get
+        {
+            var q = Filtrados;
+
+            if (ordenCol == "Fecha")
+                return ordenDesc
+                    ? q.OrderByDescending(p => p.FechaSolicitud).ThenByDescending(p => p.Id)
+                    : q.OrderBy(p => p.FechaSolicitud).ThenBy(p => p.Id);
+
+            Func<Prestamo, object> clave = ordenCol switch
+            {
+                "Nombre" => p => p.Socio.Nombre,
+                "Tipo" => p => p.TipoPrestamo.ToString(),
+                "Base" => p => p.Socio.TipoNombramiento,
+                "Importe" => p => p.ImporteOtorgado,
+                "Pago" => p => p.PagoQuincenal,
+                "Inicio" => p => p.AnioInicial * 100 + p.QuincenaInicial,
+                "Final" => p => p.AnioFinal * 100 + p.QuincenaFinal,
+                "Status" => p => p.Status.ToString(),
+                _ => p => p.FechaSolicitud
+            };
+
+            return ordenDesc ? q.OrderByDescending(clave) : q.OrderBy(clave);
+        }
+    }
+
+    // 3) Paginación
+    private int TotalRegistros => Filtrados.Count();
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(TotalRegistros / (double)tamanoPagina));
+    private int DesdeRegistro => TotalRegistros == 0 ? 0 : (PaginaActual - 1) * tamanoPagina + 1;
+    private int HastaRegistro => Math.Min(PaginaActual * tamanoPagina, TotalRegistros);
+
+    // Asegura que la página actual sea válida aunque cambie el filtro/tamaño
+    private int PaginaActual => Math.Min(paginaActual, TotalPaginas);
+
+    private IEnumerable<Prestamo> PaginaActualItems => Ordenados
+        .Skip((PaginaActual - 1) * tamanoPagina)
+        .Take(tamanoPagina);
+
+    private void Ordenar(string col)
+    {
+        if (ordenCol == col)
+        {
+            ordenDesc = !ordenDesc;
+        }
+        else
+        {
+            ordenCol = col;
+            // Texto inicia ascendente; números/fechas inician descendente
+            ordenDesc = col is "Importe" or "Pago" or "Inicio" or "Final" or "Fecha";
+        }
+        paginaActual = 1;
+    }
+
+    private MarkupString Flecha(string col)
+    {
+        if (ordenCol != col)
+            return (MarkupString)"<i class=\"ti ti-selector orden-icono orden-neutro\"></i>";
+        return (MarkupString)(ordenDesc
+            ? "<i class=\"ti ti-chevron-down orden-icono\"></i>"
+            : "<i class=\"ti ti-chevron-up orden-icono\"></i>");
+    }
+
+    private void Primera() => paginaActual = 1;
+    private void Anterior() => paginaActual = Math.Max(1, PaginaActual - 1);
+    private void Siguiente() => paginaActual = Math.Min(TotalPaginas, PaginaActual + 1);
+    private void Ultima() => paginaActual = TotalPaginas;
+}

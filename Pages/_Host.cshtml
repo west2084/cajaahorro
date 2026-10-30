@@ -1,0 +1,193 @@
+@page "/"
+@namespace CajaAhorro.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="~/" />
+    <title>Caja de Ahorro — SNTSA Sección 39</title>
+    <link rel="stylesheet" href="/css/app.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@@tabler/icons-webfont@3.0.0/tabler-icons.min.css" />
+    <style>
+        /* Banner que Blazor muestra cuando el circuito truena.
+           Sin este elemento, los errores no controlados son INVISIBLES:
+           la página se congela y los botones "no hacen nada". */
+        #blazor-error-ui {
+            display: none;
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 10000;
+            background: #b91c1c;
+            color: #fff;
+            padding: .75rem 3rem .75rem 1.25rem;
+            font-size: 14px;
+            box-shadow: 0 -2px 8px rgba(0,0,0,.25);
+        }
+
+        #blazor-error-ui .reload {
+            color: #fff;
+            text-decoration: underline;
+            font-weight: 600;
+            margin-left: .5rem;
+        }
+
+        #blazor-error-ui .dismiss {
+            position: absolute;
+            right: .9rem;
+            top: .6rem;
+            cursor: pointer;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        /* ── Modal de reconexión de Blazor Server ─────────────────────────
+           Cuando se pierde la conexión (red, servidor reiniciado, la PC
+           servidor se durmió), Blazor intenta reconectar. Sin este elemento
+           el intento es INVISIBLE y la pantalla parece congelada: no se
+           puede navegar ni dar clic. Con esto el usuario ve qué pasa y la
+           página se recarga sola si la sesión ya no existe. */
+        #components-reconnect-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10001;
+            background: rgba(17, 24, 39, .55);
+            color: #fff;
+            font-size: 15px;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        #components-reconnect-modal.components-reconnect-show,
+        #components-reconnect-modal.components-reconnect-failed,
+        #components-reconnect-modal.components-reconnect-rejected {
+            display: flex;
+        }
+
+        #components-reconnect-modal .reconnect-card {
+            background: #1f2937;
+            border-radius: 10px;
+            padding: 1.5rem 2rem;
+            max-width: 360px;
+            box-shadow: 0 8px 30px rgba(0,0,0,.4);
+        }
+
+        #components-reconnect-modal .reconnect-card i {
+            font-size: 2rem;
+            display: block;
+            margin-bottom: .5rem;
+        }
+
+        /* Mensajes según el estado (Blazor cambia la clase del modal) */
+        #components-reconnect-modal .msg-failed,
+        #components-reconnect-modal .msg-rejected { display: none; }
+
+        #components-reconnect-modal.components-reconnect-failed .msg-show,
+        #components-reconnect-modal.components-reconnect-rejected .msg-show { display: none; }
+
+        #components-reconnect-modal.components-reconnect-failed .msg-failed { display: block; }
+        #components-reconnect-modal.components-reconnect-rejected .msg-rejected { display: block; }
+    </style>
+</head>
+<body>
+    <component type="typeof(App)" render-mode="ServerPrerendered" />
+
+    <div id="blazor-error-ui">
+        <i class="ti ti-alert-octagon"></i>
+        Ocurrió un error en la aplicación y se perdió la conexión.
+        <a href="" class="reload">Recargar página</a>
+        <a class="dismiss">✕</a>
+    </div>
+
+    <div id="components-reconnect-modal">
+        <div class="reconnect-card">
+            <i class="ti ti-plug-connected-x"></i>
+            <div class="msg-show">
+                Se perdió la conexión con el servidor.<br />
+                <strong>Reconectando…</strong>
+            </div>
+            <div class="msg-failed">
+                No fue posible reconectar.<br />
+                <strong>Reintentando automáticamente…</strong>
+            </div>
+            <div class="msg-rejected">
+                La sesión expiró.<br />
+                <strong>Recargando la página…</strong>
+            </div>
+        </div>
+    </div>
+
+    <script src="/_framework/blazor.server.js" autostart="false" onload="iniciarBlazorCaja()"></script>
+    <script>
+        // IMPORTANTE: con autostart="false" el script blazor.server.js se carga
+        // de forma diferida, así que el objeto global `Blazor` NO existe todavía
+        // cuando el HTML se parsea. Llamar Blazor.start() antes de que cargue
+        // provoca "Uncaught ReferenceError: Blazor is not defined" y la app
+        // nunca arranca (ningún botón responde). Por eso el arranque se dispara
+        // desde el onload del propio script (arriba) y, como respaldo, también
+        // se reintenta si `Blazor` aún no está disponible.
+        function iniciarBlazorCaja() {
+            if (typeof Blazor === 'undefined') {
+                setTimeout(iniciarBlazorCaja, 50);   // respaldo defensivo
+                return;
+            }
+            if (window.__blazorCajaIniciado) return;  // no arrancar dos veces
+            window.__blazorCajaIniciado = true;
+
+            // Arranque con reintentos amplios: hasta 60 intentos cada 2 s
+            // (2 minutos) antes de marcar la reconexión como fallida.
+            Blazor.start({
+                reconnectionOptions: {
+                    maxRetries: 60,
+                    retryIntervalMilliseconds: 2000
+                }
+            });
+
+            // Recuperación automática ante pérdida del circuito:
+            //  - "rejected": el servidor ya no tiene el circuito (se reinició)
+            //    → recargar de inmediato para obtener una sesión nueva.
+            //  - "failed": se agotaron los reintentos → reintentar cada 3 s y,
+            //    si el servidor ya no reconoce la sesión, recargar.
+            const modal = document.getElementById('components-reconnect-modal');
+            if (!modal) return;
+
+            let reintentando = false;
+            async function reintentar() {
+                if (reintentando) return;
+                reintentando = true;
+                try {
+                    const ok = await Blazor.reconnect();
+                    if (!ok) location.reload();
+                } catch {
+                    location.reload();
+                } finally {
+                    reintentando = false;
+                }
+            }
+
+            const observer = new MutationObserver(() => {
+                if (modal.classList.contains('components-reconnect-rejected')) {
+                    location.reload();
+                } else if (modal.classList.contains('components-reconnect-failed')) {
+                    setTimeout(reintentar, 3000);
+                }
+            });
+            observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
+        }
+
+        // Respaldo por si el onload no dispara (script ya en caché en algunos
+        // navegadores): intentar también cuando el documento esté listo.
+        if (document.readyState === 'complete') {
+            iniciarBlazorCaja();
+        } else {
+            window.addEventListener('load', iniciarBlazorCaja);
+        }
+    </script>
+</body>
+</html>

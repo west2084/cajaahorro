@@ -1,0 +1,58 @@
+{
+  "Version": 1,
+  "Hash": "aFb/Y42t2xNQaib1UGV20ToskGX0VdZj4L6UvqD5eYo=",
+  "Source": "CajaAhorro",
+  "BasePath": "_content/CajaAhorro",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [
+    {
+      "Name": "CajaAhorro\\wwwroot",
+      "Source": "CajaAhorro",
+      "ContentRoot": "C:\\Users\\francisco.lopezv\\Downloads\\CajaAhorro_actualizado (3)\\CajaAhorro\\wwwroot\\",
+      "BasePath": "_content/CajaAhorro",
+      "Pattern": "**"
+    }
+  ],
+  "Assets": [
+    {
+      "Identity": "C:\\Users\\francisco.lopezv\\Downloads\\CajaAhorro_actualizado (3)\\CajaAhorro\\wwwroot\\css\\app.css",
+      "SourceId": "CajaAhorro",
+      "SourceType": "Discovered",
+      "ContentRoot": "C:\\Users\\francisco.lopezv\\Downloads\\CajaAhorro_actualizado (3)\\CajaAhorro\\wwwroot\\",
+      "BasePath": "_content/CajaAhorro",
+      "RelativePath": "css/app.css",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\css\\app.css"
+    },
+    {
+      "Identity": "C:\\Users\\francisco.lopezv\\Downloads\\CajaAhorro_actualizado (3)\\CajaAhorro\\wwwroot\\img\\logo-sntsa.png",
+      "SourceId": "CajaAhorro",
+      "SourceType": "Discovered",
+      "ContentRoot": "C:\\Users\\francisco.lopezv\\Downloads\\CajaAhorro_actualizado (3)\\CajaAhorro\\wwwroot\\",
+      "BasePath": "_content/CajaAhorro",
+      "RelativePath": "img/logo-sntsa.png",
+      "AssetKind": "All",
+      "AssetMode": "All",
+      "AssetRole": "Primary",
+      "AssetMergeBehavior": "PreferTarget",
+      "AssetMergeSource": "",
+      "RelatedAsset": "",
+      "AssetTraitName": "",
+      "AssetTraitValue": "",
+      "CopyToOutputDirectory": "Never",
+      "CopyToPublishDirectory": "PreserveNewest",
+      "OriginalItemSpec": "wwwroot\\img\\logo-sntsa.png"
+    }
+  ]
+}

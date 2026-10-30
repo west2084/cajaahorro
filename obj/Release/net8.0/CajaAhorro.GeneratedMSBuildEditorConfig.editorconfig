@@ -1,0 +1,131 @@
+is_global = true
+build_property.TargetFramework = net8.0
+build_property.TargetPlatformMinVersion = 
+build_property.UsingMicrosoftNETSdkWeb = true
+build_property.ProjectTypeGuids = 
+build_property.InvariantGlobalization = 
+build_property.PlatformNeutralAssembly = 
+build_property.EnforceExtendedAnalyzerRules = 
+build_property._SupportedPlatformList = Linux,macOS,Windows
+build_property.RootNamespace = CajaAhorro
+build_property.RootNamespace = CajaAhorro
+build_property.ProjectDir = C:\Users\francisco.lopezv\Downloads\CajaAhorro_actualizado (3)\CajaAhorro\
+build_property.EnableComHosting = 
+build_property.EnableGeneratedComInterfaceComImportInterop = 
+build_property.RazorLangVersion = 8.0
+build_property.SupportLocalizedComponentNames = 
+build_property.GenerateRazorMetadataSourceChecksumAttributes = 
+build_property.MSBuildProjectDirectory = C:\Users\francisco.lopezv\Downloads\CajaAhorro_actualizado (3)\CajaAhorro
+build_property._RazorSourceGeneratorDebug = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/App.razor]
+build_metadata.AdditionalFiles.TargetPath = QXBwLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Ahorro/Ahorro_Tablero.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQWhvcnJvXEFob3Jyb19UYWJsZXJvLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Ahorro/ImportarAhorro.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQWhvcnJvXEltcG9ydGFyQWhvcnJvLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Ahorro/Index.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQWhvcnJvXEluZGV4LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/CargaInicial.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcQ2FyZ2FJbmljaWFsLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Dashboard.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcRGFzaGJvYXJkLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/PagosQuincenales/Index.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUGFnb3NRdWluY2VuYWxlc1xJbmRleC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Prestamos/DetallePrestamo.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUHJlc3RhbW9zXERldGFsbGVQcmVzdGFtby5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Prestamos/Index.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUHJlc3RhbW9zXEluZGV4LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Prestamos/NuevoPrestamo.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUHJlc3RhbW9zXE51ZXZvUHJlc3RhbW8ucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Prestamos/Prestamos_Tablero.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUHJlc3RhbW9zXFByZXN0YW1vc19UYWJsZXJvLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Reportes/Index.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUmVwb3J0ZXNcSW5kZXgucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Retenciones/CapturaManual.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUmV0ZW5jaW9uZXNcQ2FwdHVyYU1hbnVhbC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Retenciones/Index.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUmV0ZW5jaW9uZXNcSW5kZXgucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Retenciones/Retenciones_Tablero.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcUmV0ZW5jaW9uZXNcUmV0ZW5jaW9uZXNfVGFibGVyby5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Socios/DetalleSocio.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcU29jaW9zXERldGFsbGVTb2Npby5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Socios/EditarSocio.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcU29jaW9zXEVkaXRhclNvY2lvLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Socios/Index.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcU29jaW9zXEluZGV4LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Socios/NuevoSocio.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcU29jaW9zXE51ZXZvU29jaW8ucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Usuarios/Index.razor]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcVXN1YXJpb3NcSW5kZXgucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Shared/BuscadorSocio.razor]
+build_metadata.AdditionalFiles.TargetPath = U2hhcmVkXEJ1c2NhZG9yU29jaW8ucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Shared/MainLayout.razor]
+build_metadata.AdditionalFiles.TargetPath = U2hhcmVkXE1haW5MYXlvdXQucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Shared/NavMenu.razor]
+build_metadata.AdditionalFiles.TargetPath = U2hhcmVkXE5hdk1lbnUucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Shared/RedirectToLogin.razor]
+build_metadata.AdditionalFiles.TargetPath = U2hhcmVkXFJlZGlyZWN0VG9Mb2dpbi5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/_Imports.razor]
+build_metadata.AdditionalFiles.TargetPath = X0ltcG9ydHMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Login.cshtml]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcTG9naW4uY3NodG1s
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/Logout.cshtml]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcTG9nb3V0LmNzaHRtbA==
+build_metadata.AdditionalFiles.CssScope = 
+
+[C:/Users/francisco.lopezv/Downloads/CajaAhorro_actualizado (3)/CajaAhorro/Pages/_Host.cshtml]
+build_metadata.AdditionalFiles.TargetPath = UGFnZXNcX0hvc3QuY3NodG1s
+build_metadata.AdditionalFiles.CssScope = 

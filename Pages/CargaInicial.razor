@@ -1,0 +1,222 @@
+@page "/carga-inicial"
+@attribute [Authorize(Roles = "Administrador")]
+@inject CargaInicialService CargaService
+@inject NavigationManager Nav
+
+<PageTitle>Carga inicial — Caja de Ahorro</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Carga inicial de datos</h1>
+        <p class="text-muted">Importa el historial de préstamos 2025 desde Excel</p>
+    </div>
+    <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/")'>
+        <i class="ti ti-arrow-left"></i> Regresar
+    </button>
+</div>
+
+<div class="form-card" style="max-width:680px;">
+
+    @if (!ejecutado)
+    {
+        <div class="form-section" style="border-bottom:none;margin-bottom:0;padding-bottom:0;">
+            <h2>Importar archivo Excel</h2>
+            <p class="text-muted" style="margin-bottom:1.25rem;">
+                Selecciona el archivo <strong>PRESTAMOS_2025.xlsx</strong>.
+                El sistema creará automáticamente los socios y préstamos.
+            </p>
+
+            <div class="aviso-info" style="margin-bottom:1rem;">
+                <i class="ti ti-info-circle"></i>
+                <div>
+                    <strong>Nota:</strong> Si ya ejecutaste una carga anterior (aunque haya marcado 0 registros),
+                    primero borra los datos desde SQL Server Management Studio o ejecuta esta migración en la
+                    consola de paquetes:<br/>
+                    <code>DELETE FROM AmortizacionDetalles; DELETE FROM Prestamos; DELETE FROM Socios;</code>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Archivo Excel de préstamos (.xlsx)</label>
+                <InputFile OnChange="OnArchivoSeleccionado" accept=".xlsx" />
+                @if (nombreArchivo is not null)
+                {
+                    <span class="text-muted" style="font-size:12px;margin-top:4px;display:block;">
+                        <i class="ti ti-file-spreadsheet"></i> @nombreArchivo — @tamanoArchivo KB
+                    </span>
+                }
+            </div>
+
+            @if (logDiagnostico.Any())
+            {
+                <div style="background:#f8f9fa;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-top:1rem;font-size:12px;font-family:monospace;max-height:200px;overflow-y:auto;">
+                    @foreach (var line in logDiagnostico)
+                    {
+                        <div>@line</div>
+                    }
+                </div>
+            }
+
+            <div class="form-actions" style="margin-top:1rem;">
+                <button class="btn-primary"
+                        @onclick="Ejecutar"
+                        disabled="@(archivo is null || cargando)">
+                    @if (cargando)
+                    {
+                        <span>Importando... espera un momento</span>
+                    }
+                    else
+                    {
+                        <span><i class="ti ti-database-import"></i> Iniciar importación</span>
+                    }
+                </button>
+            </div>
+        </div>
+    }
+    else if (resultado is not null)
+    {
+        <div class="resultado-carga">
+            @if (resultado.PrestamosCreados > 0)
+            {
+                <div class="resultado-icono exito"><i class="ti ti-circle-check"></i></div>
+                <h2>¡Importación completada!</h2>
+            }
+            else
+            {
+                <div class="resultado-icono parcial"><i class="ti ti-alert-triangle"></i></div>
+                <h2>Importación con problemas</h2>
+            }
+
+            <div class="resultado-stats">
+                <div class="resultado-stat">
+                    <span class="resultado-numero">@resultado.SociosCreados</span>
+                    <span class="resultado-label">Socios creados</span>
+                </div>
+                <div class="resultado-stat">
+                    <span class="resultado-numero">@resultado.PrestamosCreados</span>
+                    <span class="resultado-label">Préstamos importados</span>
+                </div>
+                <div class="resultado-stat">
+                    <span class="resultado-numero">@resultado.FilasOmitidas</span>
+                    <span class="resultado-label">Filas omitidas</span>
+                </div>
+            </div>
+
+            @if (resultado.Errores.Any())
+            {
+                <div class="resultado-errores">
+                    <strong>Errores (@resultado.Errores.Count):</strong>
+                    <ul>
+                        @foreach (var e in resultado.Errores.Take(20))
+                        {
+                            <li>@e</li>
+                        }
+                        @if (resultado.Errores.Count > 20)
+                        {
+                            <li class="text-muted">... y @(resultado.Errores.Count - 20) más</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <!-- Log de diagnóstico siempre visible -->
+            @if (logDiagnostico.Any())
+            {
+                <div style="background:#f8f9fa;border:1px solid #e5e7eb;border-radius:6px;padding:12px;margin-top:1rem;font-size:11px;font-family:monospace;max-height:250px;overflow-y:auto;text-align:left;">
+                    <strong>Log de proceso:</strong>
+                    @foreach (var line in logDiagnostico)
+                    {
+                        <div>@line</div>
+                    }
+                </div>
+            }
+
+            <div class="form-actions" style="justify-content:center;margin-top:1.5rem;">
+                @if (resultado.PrestamosCreados > 0)
+                {
+                    <button class="btn-primary" @onclick='() => Nav.NavigateTo("/socios")'>
+                        <i class="ti ti-users"></i> Ver socios importados
+                    </button>
+                    <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/prestamos")'>
+                        <i class="ti ti-credit-card"></i> Ver préstamos
+                    </button>
+                }
+                else
+                {
+                    <button class="btn-secondary" @onclick="Reiniciar">
+                        <i class="ti ti-refresh"></i> Intentar de nuevo
+                    </button>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private IBrowserFile? archivo;
+    private string? nombreArchivo;
+    private long tamanoArchivo;
+    private bool cargando = false;
+    private bool ejecutado = false;
+    private CargaInicialService.ResultadoCarga? resultado;
+    private List<string> logDiagnostico = new();
+
+    private void OnArchivoSeleccionado(InputFileChangeEventArgs e)
+    {
+        archivo = e.File;
+        nombreArchivo = e.File.Name;
+        tamanoArchivo = e.File.Size / 1024;
+        logDiagnostico.Clear();
+        logDiagnostico.Add($"[INFO] Archivo seleccionado: {nombreArchivo} ({tamanoArchivo} KB)");
+    }
+
+    private async Task Ejecutar()
+    {
+        if (archivo is null) return;
+
+        cargando = true;
+        logDiagnostico.Clear();
+        logDiagnostico.Add($"[INFO] Iniciando carga...");
+        StateHasChanged();
+
+        try
+        {
+            logDiagnostico.Add($"[INFO] Leyendo archivo ({tamanoArchivo} KB)...");
+            StateHasChanged();
+
+            // Leer el stream completo antes de pasarlo
+            using var stream = archivo.OpenReadStream(maxAllowedSize: 30 * 1024 * 1024);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+
+            logDiagnostico.Add($"[INFO] Archivo leído OK ({ms.Length} bytes). Procesando filas...");
+            StateHasChanged();
+
+            resultado = await CargaService.CargarPrestamos2025Async(ms, logDiagnostico);
+
+            logDiagnostico.Add($"[OK] Proceso terminado. Socios: {resultado.SociosCreados}, Préstamos: {resultado.PrestamosCreados}, Omitidas: {resultado.FilasOmitidas}");
+        }
+        catch (Exception ex)
+        {
+            logDiagnostico.Add($"[ERROR FATAL] {ex.Message}");
+            logDiagnostico.Add($"[STACK] {ex.StackTrace?.Split('\n').FirstOrDefault()}");
+            resultado = new CargaInicialService.ResultadoCarga();
+            resultado.Errores.Add($"Error general: {ex.Message}");
+        }
+        finally
+        {
+            cargando = false;
+            ejecutado = true;
+        }
+    }
+
+    private void Reiniciar()
+    {
+        archivo = null;
+        nombreArchivo = null;
+        ejecutado = false;
+        resultado = null;
+        logDiagnostico.Clear();
+    }
+}

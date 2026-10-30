@@ -1,0 +1,190 @@
+@page "/reportes"
+@inject NavigationManager Nav
+@inject CajaAhorro.Data.AppDbContext Db
+
+<PageTitle>Reportes — Caja de Ahorro</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Reportes</h1>
+        <p class="text-muted">Exportación en Excel para conciliación y revisión</p>
+    </div>
+</div>
+
+@if (cargando)
+{
+    <p class="text-muted" style="margin-top:2rem;text-align:center;">
+        <i class="ti ti-loader-2"></i> Cargando...
+    </p>
+}
+else
+{
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1.25rem;">
+
+        @* ── 1. Créditos otorgados ──────────────────────────────────────── *@
+        <div class="form-card">
+            <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.35rem;">
+                <i class="ti ti-credit-card" style="font-size:1.5rem;color:#4f8ef7;"></i>
+                <span style="font-weight:600;">Créditos otorgados</span>
+            </div>
+            <p class="text-muted" style="font-size:13px;margin:.25rem 0 1rem;">
+                Listado completo con importe, tasa, plazo, quincenas pagadas
+                y saldo pendiente. @totalCreditos créditos en el sistema.
+            </p>
+
+            <div class="form-group">
+                <label>Año (QNA inicial)</label>
+                <select class="form-control" @bind="creditosAnio">
+                    <option value="0">Todos los años</option>
+                    @foreach (var a in aniosDisponibles)
+                    {
+                        <option value="@a">@a</option>
+                    }
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Status</label>
+                <select class="form-control" @bind="creditosStatus">
+                    <option value="">Todos</option>
+                    <option value="Activo">Activos</option>
+                    <option value="Liquidado">Saldados</option>
+                    <option value="Cancelado">Cancelados</option>
+                    <option value="Reestructurado">Reestructurados</option>
+                </select>
+            </div>
+
+            <button class="btn-primary" style="width:100%;" @onclick="DescargarCreditos">
+                <i class="ti ti-file-spreadsheet"></i> Descargar Excel
+            </button>
+        </div>
+
+        @* ── 2. Socios con datos faltantes ──────────────────────────────── *@
+        <div class="form-card">
+            <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.35rem;">
+                <i class="ti ti-user-question" style="font-size:1.5rem;color:#d97706;"></i>
+                <span style="font-weight:600;">Socios con datos faltantes</span>
+            </div>
+            <p class="text-muted" style="font-size:13px;margin:.25rem 0 1rem;">
+                Detecta RFC inválido o faltante, sin teléfono, sin correo,
+                sin domicilio o sin adscripción. Los socios <strong>provisionales</strong>
+                (creados por importación) aparecen resaltados al inicio.
+            </p>
+
+            <div class="stat-card" style="margin-bottom:1rem;border-left:3px solid #d97706;">
+                <span class="stat-label">Socios provisionales actuales</span>
+                <span class="stat-valor" style="color:#d97706;">@sociosProvisionales</span>
+                <span class="text-muted">pendientes de completar expediente</span>
+            </div>
+
+            <button class="btn-primary" style="width:100%;" @onclick="DescargarIncompletos">
+                <i class="ti ti-file-spreadsheet"></i> Descargar Excel
+            </button>
+        </div>
+
+        @* ── 3. Ahorradores ─────────────────────────────────────────────── *@
+        <div class="form-card">
+            <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.35rem;">
+                <i class="ti ti-piggy-bank" style="font-size:1.5rem;color:#059669;"></i>
+                <span style="font-weight:600;">Ahorradores</span>
+            </div>
+            <p class="text-muted" style="font-size:13px;margin:.25rem 0 1rem;">
+                Total ahorrado por socio, quincenas aportadas, promedio
+                quincenal y última aportación, filtrable por ciclo.
+            </p>
+
+            <div class="form-group">
+                <label>Año</label>
+                <select class="form-control" @bind="ahorroAnio">
+                    @foreach (var a in aniosAhorro)
+                    {
+                        <option value="@a">@a</option>
+                    }
+                </select>
+                <span class="campo-hint" style="font-size:11px;">
+                    Para el ciclo Escolar, este es el año en que INICIA (julio).
+                </span>
+            </div>
+            <div class="form-group">
+                <label>Ciclo</label>
+                <select class="form-control" @bind="ahorroCiclo">
+                    <option value="">Ambos ciclos</option>
+                    <option value="Navideño">Navideño (ene–dic)</option>
+                    <option value="Escolar">Escolar (jul–jun año siguiente)</option>
+                </select>
+            </div>
+
+            <button class="btn-primary" style="width:100%;" @onclick="DescargarAhorradores">
+                <i class="ti ti-file-spreadsheet"></i> Descargar Excel
+            </button>
+        </div>
+
+    </div>
+}
+
+@code {
+    private bool cargando = true;
+
+    private int totalCreditos;
+    private int sociosProvisionales;
+
+    private List<int> aniosDisponibles = new();
+    private List<int> aniosAhorro = new();
+
+    // Filtros
+    private int creditosAnio = 0;
+    private string creditosStatus = "";
+    private int ahorroAnio = DateTime.Today.Year;
+    private string ahorroCiclo = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        totalCreditos = await Db.Prestamos.CountAsync();
+
+        sociosProvisionales = await Db.Socios.CountAsync(s =>
+            s.Activo && s.EstadoCaptura == EstadoCaptura.Provisional);
+
+        aniosDisponibles = await Db.Prestamos
+            .Select(p => p.AnioInicial)
+            .Distinct()
+            .OrderByDescending(a => a)
+            .ToListAsync();
+
+        aniosAhorro = await Db.Ahorros
+            .Select(a => a.Anio)
+            .Distinct()
+            .OrderByDescending(a => a)
+            .ToListAsync();
+
+        if (!aniosAhorro.Any())
+            aniosAhorro.Add(DateTime.Today.Year);
+
+        if (!aniosAhorro.Contains(ahorroAnio))
+            ahorroAnio = aniosAhorro.First();
+
+        cargando = false;
+    }
+
+    // forceLoad: true — la descarga la sirve el controller, fuera del circuito Blazor
+    private void DescargarCreditos()
+    {
+        var url = "/api/reportes/creditos";
+        var qs = new List<string>();
+        if (creditosAnio > 0) qs.Add($"anio={creditosAnio}");
+        if (!string.IsNullOrEmpty(creditosStatus)) qs.Add($"status={creditosStatus}");
+        if (qs.Any()) url += "?" + string.Join("&", qs);
+
+        Nav.NavigateTo(url, forceLoad: true);
+    }
+
+    private void DescargarIncompletos() =>
+        Nav.NavigateTo("/api/reportes/socios-incompletos", forceLoad: true);
+
+    private void DescargarAhorradores()
+    {
+        var url = $"/api/reportes/ahorradores?anio={ahorroAnio}";
+        if (!string.IsNullOrEmpty(ahorroCiclo))
+            url += $"&ciclo={Uri.EscapeDataString(ahorroCiclo)}";
+
+        Nav.NavigateTo(url, forceLoad: true);
+    }
+}

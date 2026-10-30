@@ -1,0 +1,327 @@
+@page "/retenciones-manual"
+@inject PrestamoService PrestamoService
+@inject NavigationManager Nav
+
+<PageTitle>Captura manual de retenciones — Caja de Ahorro</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Captura manual de retenciones</h1>
+        <p class="text-muted">Registra descuentos quincenales uno por uno cuando no hay archivo Excel</p>
+    </div>
+    <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/")'>
+        <i class="ti ti-arrow-left"></i> Regresar
+    </button>
+</div>
+
+<!-- ── Configuración de la quincena ──────────────────────────────────────── -->
+<div class="form-card" style="max-width:760px; margin-bottom:1.25rem;">
+    <h2 style="margin-bottom:1rem;">Quincena a capturar</h2>
+    <div class="form-row-3">
+        <div class="form-group">
+            <label>Quincena</label>
+            <select class="form-control" @bind="quincena">
+                @for (int i = 1; i <= 24; i++)
+                {
+                    <option value="@i">QNA @i.ToString("D2")</option>
+                }
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Año</label>
+            <select class="form-control" @bind="anio">
+                @for (int y = 2024; y <= DateTime.Today.Year + 1; y++)
+                {
+                    <option value="@y">@y</option>
+                }
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Institución (origen)</label>
+            <select class="form-control" @bind="fuente">
+                <option value="@FuenteRetencion.Estatal">Estatal (SSZ)</option>
+                <option value="@FuenteRetencion.Federal">Federal (IMSS Bienestar)</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- ── Agregar trabajador ────────────────────────────────────────────────── -->
+<div class="form-card" style="max-width:760px; margin-bottom:1.25rem;">
+    <h2 style="margin-bottom:1rem;">Agregar descuento</h2>
+
+    <div class="captura-row">
+        <div>
+            <label class="filtro-label">Trabajador</label>
+            <BuscadorSocio @bind-SocioSeleccionado="socioActual"
+                           Label=""
+                           @bind-SocioSeleccionado:after="OnSocioElegido" />
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+            <label>Importe descontado ($)</label>
+            <input type="number" class="form-control" @bind="importeActual" min="0" step="0.01" />
+        </div>
+        <div></div>
+        <button class="btn-primary" @onclick="AgregarCaptura" disabled="@(socioActual is null)">
+            <i class="ti ti-plus"></i> Agregar
+        </button>
+    </div>
+
+    @if (sugerencia is not null)
+    {
+        <p class="campo-hint" style="margin-top:0.5rem;">
+            <i class="ti ti-info-circle"></i>
+            Pago quincenal esperado de su préstamo activo: <strong>@sugerencia.Value.ToString("C")</strong>
+        </p>
+    }
+    @if (!string.IsNullOrEmpty(avisoAgregar))
+    {
+        <div class="alert-error" style="margin-top:0.5rem;">@avisoAgregar</div>
+    }
+</div>
+
+<!-- ── Lista pendiente por aplicar ───────────────────────────────────────── -->
+@if (capturas.Any())
+{
+    <div class="form-card" style="max-width:760px; margin-bottom:1.25rem;">
+        <h2 style="margin-bottom:1rem;">
+            Descuentos por aplicar — QNA @quincena.ToString("D2")/@anio
+            <span class="conteo" style="margin-left:6px;">@capturas.Count</span>
+        </h2>
+
+        <div class="table-container">
+            <table class="tabla tabla-sm">
+                <thead>
+                    <tr>
+                        <th>Trabajador</th>
+                        <th>RFC</th>
+                        <th class="text-right">Importe</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in capturas)
+                    {
+                        <tr>
+                            <td>@c.Socio.Nombre</td>
+                            <td><span class="codigo">@c.Socio.RFC</span></td>
+                            <td class="text-right">@c.Importe.ToString("C")</td>
+                            <td class="text-right">
+                                <button class="btn-icon" @onclick="() => Quitar(c)" title="Quitar">
+                                    <i class="ti ti-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr class="fila-totales">
+                        <td colspan="2"><strong>TOTAL</strong></td>
+                        <td class="text-right"><strong>@capturas.Sum(x => x.Importe).ToString("C")</strong></td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="form-actions" style="margin-top:1rem;">
+            <button class="btn-secondary" @onclick="Limpiar" disabled="@aplicando">
+                <i class="ti ti-x"></i> Vaciar lista
+            </button>
+            <button class="btn-primary" @onclick="AplicarTodo" disabled="@aplicando">
+                @if (aplicando)
+                {
+                    <span><i class="ti ti-loader-2"></i> Aplicando...</span>
+                }
+                else
+                {
+                    <span><i class="ti ti-device-floppy"></i> Aplicar @capturas.Count descuento(s)</span>
+                }
+            </button>
+        </div>
+    </div>
+}
+
+<!-- ── Resultados ────────────────────────────────────────────────────────── -->
+@if (resultados.Any())
+{
+    <div class="form-card" style="max-width:760px;">
+        <h2 style="margin-bottom:1rem;">Resultado</h2>
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:.75rem; margin-bottom:1rem;">
+            <div class="resultado-stat">
+                <span class="resultado-numero" style="color:#059669;">@resultados.Count(r => r.Aplicado)</span>
+                <span class="resultado-label">Aplicados</span>
+            </div>
+            <div class="resultado-stat">
+                <span class="resultado-numero" style="color:#d97706;">@resultados.Count(r => !r.Aplicado)</span>
+                <span class="resultado-label">Sin aplicar</span>
+            </div>
+            <div class="resultado-stat">
+                <span class="resultado-numero">@resultados.Where(r => r.Aplicado).Sum(r => r.Monto).ToString("C0")</span>
+                <span class="resultado-label">Importe aplicado</span>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table class="tabla tabla-sm">
+                <thead>
+                    <tr><th>Trabajador</th><th class="text-right">Importe</th><th>Resultado</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in resultados)
+                    {
+                        <tr>
+                            <td>@r.Nombre<br /><span class="rfc-socio">@r.Rfc</span></td>
+                            <td class="text-right">@r.Monto.ToString("C")</td>
+                            <td>
+                                <span class="badge @(r.Aplicado ? "badge-pago-aplicado" : "badge-pago-suspendido")">
+                                    @(r.Aplicado ? "OK" : "—")
+                                </span>
+                                <span style="font-size:12px; color:#6b7280; margin-left:6px;">@r.Mensaje</span>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div style="margin-top:1rem;">
+            <button class="btn-primary" @onclick="NuevaCaptura">
+                <i class="ti ti-plus"></i> Capturar otra quincena
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    // Configuración — la quincena por defecto es la ACTUAL calculada con mes
+    // y día (el default anterior solo miraba el día: siempre proponía QNA 01
+    // o 02 de enero, y si el operador no lo corregía, el pago se aplicaba a
+    // una quincena equivocada o al "siguiente pendiente" del préstamo).
+    private int             quincena;
+    private int             anio;
+    private FuenteRetencion fuente   = FuenteRetencion.Estatal;
+
+    protected override void OnInitialized()
+    {
+        (quincena, anio) = PrestamoService.QuincenaDeFecha(DateTime.Today);
+    }
+
+    // Captura en curso
+    private Socio?   socioActual;
+    private decimal  importeActual;
+    private decimal? sugerencia;
+    private string   avisoAgregar = "";
+
+    private record CapturaLinea(Socio Socio, decimal Importe);
+    private readonly List<CapturaLinea> capturas = new();
+
+    // Resultados
+    private bool aplicando = false;
+    private readonly List<PrestamoService.ResultadoPagoManual> resultados = new();
+
+    private async Task OnSocioElegido()
+    {
+        avisoAgregar = "";
+        sugerencia   = null;
+        importeActual = 0;
+
+        if (socioActual is null) return;
+
+        // Sugerir el pago quincenal del préstamo activo
+        var activos = await PrestamoService.ObtenerActivosPorSocioAsync(socioActual.Id);
+        var pago = activos.FirstOrDefault()?.PagoQuincenal;
+        if (pago.HasValue && pago.Value > 0)
+        {
+            sugerencia    = pago;
+            importeActual = pago.Value;
+        }
+        else
+        {
+            avisoAgregar = "Este trabajador no tiene un préstamo activo; el descuento podría no aplicarse.";
+        }
+    }
+
+    private void AgregarCaptura()
+    {
+        avisoAgregar = "";
+        if (socioActual is null) return;
+
+        if (importeActual < 0)
+        {
+            avisoAgregar = "El importe no puede ser negativo.";
+            return;
+        }
+
+        if (capturas.Any(c => c.Socio.Id == socioActual.Id))
+        {
+            avisoAgregar = "Ese trabajador ya está en la lista.";
+            return;
+        }
+
+        capturas.Add(new CapturaLinea(socioActual, importeActual));
+        socioActual   = null;
+        importeActual = 0;
+        sugerencia    = null;
+    }
+
+    private void Quitar(CapturaLinea c) => capturas.Remove(c);
+
+    private void Limpiar()
+    {
+        capturas.Clear();
+        avisoAgregar = "";
+    }
+
+    private async Task AplicarTodo()
+    {
+        aplicando = true;
+        resultados.Clear();
+        StateHasChanged();
+
+        try
+        {
+            foreach (var c in capturas)
+            {
+                try
+                {
+                    var r = await PrestamoService.RegistrarPagoManualAsync(
+                        c.Socio.Id, quincena, anio, c.Importe);
+                    r.Nombre = c.Socio.Nombre;
+                    r.Rfc    = c.Socio.RFC;
+                    resultados.Add(r);
+                }
+                catch (Exception ex)
+                {
+                    // Una captura fallida no debe tumbar las demás ni el circuito.
+                    resultados.Add(new PrestamoService.ResultadoPagoManual
+                    {
+                        Aplicado = false,
+                        Nombre   = c.Socio.Nombre,
+                        Rfc      = c.Socio.RFC,
+                        Monto    = c.Importe,
+                        Quincena = quincena,
+                        Anio     = anio,
+                        Mensaje  = $"Error: {ex.InnerException?.Message ?? ex.Message}"
+                    });
+                }
+            }
+
+            capturas.Clear();
+        }
+        finally
+        {
+            aplicando = false;
+            StateHasChanged();
+        }
+    }
+
+    private void NuevaCaptura()
+    {
+        resultados.Clear();
+        capturas.Clear();
+        socioActual   = null;
+        importeActual = 0;
+        avisoAgregar  = "";
+    }
+}

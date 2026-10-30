@@ -1,0 +1,201 @@
+@page "/socios"
+@inject SocioService SocioService
+@inject NavigationManager Nav
+
+<PageTitle>Socios — Caja de Ahorro</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Catálogo de socios</h1>
+        <p class="text-muted">Trabajadores registrados en la caja</p>
+    </div>
+    <button class="btn-primary" @onclick='() => Nav.NavigateTo("/socios/nuevo")'>
+        <i class="ti ti-user-plus"></i> Nuevo socio
+    </button>
+</div>
+
+@if (cargando)
+{
+    <div class="loading">Cargando socios...</div>
+}
+else
+{
+    <div class="filtros">
+        <input type="text" placeholder="Buscar por nombre o RFC..."
+               value="@filtroTexto"
+               @oninput="OnFiltroInput"
+               class="input-busqueda" />
+
+        <select class="select-filtro"
+                value="@filtroInstitucion"
+                @onchange="OnFiltroInstitucionChange">
+            <option value="">Todas las instituciones</option>
+            <option value="Estatal">Secretaría de Salud (Estatal)</option>
+            <option value="Federal">OPD (Federal)</option>
+        </select>
+    </div>
+
+    <div class="table-container">
+        <table class="tabla">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>RFC</th>
+                    <th>Adscripción</th>
+                    <th>Nombramiento</th>
+                    <th>Institución</th>
+                    <th class="text-center">Préstamos</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in PaginaActualItems)
+                {
+                    <tr>
+                        <td>
+                            <span class="nombre-socio">@s.Nombre</span>
+                        </td>
+                        <td><code class="codigo">@s.RFC</code></td>
+                        <td>@s.Adscripcion</td>
+                        <td>@s.TipoNombramiento</td>
+                        <td>
+                            <span class="badge badge-@s.InstitucionActual.ToString().ToLower()">
+                                @(s.InstitucionActual == InstitucionTipo.Estatal ? "Estatal" : "Federal")
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <span class="conteo">@s.Prestamos.Count</span>
+                        </td>
+                        <td>
+                            <div class="acciones">
+                                <button class="btn-icon" title="Ver préstamos"
+                                        @onclick='() => Nav.NavigateTo($"/socios/{s.Id}")'>
+                                    <i class="ti ti-eye"></i>
+                                </button>
+                                <button class="btn-icon" title="Ver ahorro"
+                                        @onclick='() => Nav.NavigateTo($"/socios/{s.Id}#ahorro")'>
+                                    <i class="ti ti-piggy-bank"></i>
+                                </button>
+                                <button class="btn-icon" title="Editar"
+                                        @onclick='() => Nav.NavigateTo($"/socios/{s.Id}/editar")'>
+                                    <i class="ti ti-pencil"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                @if (TotalRegistros == 0)
+                {
+                    <tr>
+                        <td colspan="7" class="text-center text-muted" style="padding: 2rem;">
+                            No se encontraron socios
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Footer + paginador -->
+    <div class="table-footer paginador">
+        <div class="paginador-info">
+            @if (TotalRegistros > 0)
+            {
+                <span class="text-muted">
+                    Mostrando @(DesdeRegistro)–@(HastaRegistro) de @TotalRegistros socio(s)
+                </span>
+            }
+            else
+            {
+                <span class="text-muted">0 socios</span>
+            }
+        </div>
+
+        <div class="paginador-controles">
+            <label class="text-muted paginador-tamano">
+                Por página:
+                <select @bind="TamanoPagina" class="select-filtro select-sm">
+                    @foreach (var n in opcionesTamano)
+                    {
+                        <option value="@n">@n</option>
+                    }
+                </select>
+            </label>
+
+            <button class="btn-icon" disabled="@(PaginaActual <= 1)" @onclick="Primera" title="Primera">
+                <i class="ti ti-chevrons-left"></i>
+            </button>
+            <button class="btn-icon" disabled="@(PaginaActual <= 1)" @onclick="Anterior" title="Anterior">
+                <i class="ti ti-chevron-left"></i>
+            </button>
+
+            <span class="paginador-pagina">Página @PaginaActual de @TotalPaginas</span>
+
+            <button class="btn-icon" disabled="@(PaginaActual >= TotalPaginas)" @onclick="Siguiente" title="Siguiente">
+                <i class="ti ti-chevron-right"></i>
+            </button>
+            <button class="btn-icon" disabled="@(PaginaActual >= TotalPaginas)" @onclick="Ultima" title="Última">
+                <i class="ti ti-chevrons-right"></i>
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Socio> socios = new();
+    private bool cargando = true;
+    private string filtroTexto = "";
+    private string filtroInstitucion = "";
+
+    // Paginación
+    private int paginaActual = 1;
+    private int tamanoPagina = 25;
+    private readonly int[] opcionesTamano = { 10, 25, 50, 100 };
+
+    private int TamanoPagina
+    {
+        get => tamanoPagina;
+        set { tamanoPagina = value; paginaActual = 1; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        socios = await SocioService.ObtenerTodosAsync();
+        cargando = false;
+    }
+
+    private void OnFiltroInstitucionChange(ChangeEventArgs e)
+    {
+        filtroInstitucion = e.Value?.ToString() ?? "";
+        paginaActual = 1;
+    }
+
+    private void OnFiltroInput(ChangeEventArgs e)
+    {
+        filtroTexto = e.Value?.ToString() ?? "";
+        paginaActual = 1;
+    }
+
+    private IEnumerable<Socio> Filtrados => socios
+        .Where(s =>
+            (string.IsNullOrEmpty(filtroTexto) ||
+             s.Nombre.Contains(filtroTexto, StringComparison.OrdinalIgnoreCase) ||
+             s.RFC.Contains(filtroTexto, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrEmpty(filtroInstitucion) ||
+             s.InstitucionActual.ToString() == filtroInstitucion));
+
+    private int TotalRegistros => Filtrados.Count();
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(TotalRegistros / (double)tamanoPagina));
+    private int DesdeRegistro => TotalRegistros == 0 ? 0 : (PaginaActual - 1) * tamanoPagina + 1;
+    private int HastaRegistro => Math.Min(PaginaActual * tamanoPagina, TotalRegistros);
+    private int PaginaActual => Math.Min(paginaActual, TotalPaginas);
+
+    private IEnumerable<Socio> PaginaActualItems => Filtrados
+        .Skip((PaginaActual - 1) * tamanoPagina)
+        .Take(tamanoPagina);
+
+    private void Primera()   => paginaActual = 1;
+    private void Anterior()  => paginaActual = Math.Max(1, PaginaActual - 1);
+    private void Siguiente() => paginaActual = Math.Min(TotalPaginas, PaginaActual + 1);
+    private void Ultima()    => paginaActual = TotalPaginas;
+}

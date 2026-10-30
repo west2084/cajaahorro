@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "CajaAhorro": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:6686;http://localhost:6687"
+    }
+  }
+}

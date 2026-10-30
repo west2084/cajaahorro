@@ -1,0 +1,675 @@
+@page "/prestamos/{Id:int}"
+@inject PrestamoService PrestamoService
+@inject AhorroImportService AhorroSvc
+@inject NavigationManager Nav
+
+<PageTitle>Detalle de préstamo — Caja de Ahorro</PageTitle>
+
+<style>
+    .modal-backdrop {
+        position: fixed; inset: 0; background: rgba(17,24,39,.45);
+        z-index: 1000; overflow-y: auto;
+    }
+</style>
+
+@if (cargando)
+{
+    <div class="loading">Cargando...</div>
+}
+else if (prestamo is null)
+{
+    <div class="loading">Préstamo no encontrado.</div>
+}
+else
+{
+    <div class="page-header">
+        <div>
+            <h1>
+                Préstamo — @prestamo.Socio.Nombre
+                @if (!string.IsNullOrEmpty(prestamo.Folio))
+                {
+                    <span class="badge badge-blue" style="font-size:13px; vertical-align:middle; margin-left:8px;">
+                        @prestamo.Folio
+                    </span>
+                }
+            </h1>
+            <p class="text-muted">
+                @prestamo.TipoPrestamo · QNA @prestamo.QuincenaInicial.ToString("D2")/@prestamo.AnioInicial
+                → QNA @prestamo.QuincenaFinal.ToString("D2")/@prestamo.AnioFinal
+            </p>
+        </div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <button class="btn-secondary"
+                    @onclick='() => Nav.NavigateTo($"/socios/{prestamo.SocioId}")'>
+                <i class="ti ti-arrow-left"></i> Regresar
+            </button>
+            <button class="btn-secondary" @onclick="AbrirCambioStatus">
+                <i class="ti ti-exchange"></i> Cambiar status
+            </button>
+            @if (prestamo.Status == StatusPrestamo.Activo)
+            {
+                <button class="btn-secondary" @onclick="AbrirAbonoCapital">
+                    <i class="ti ti-cash-banknote"></i> Abono a capital
+                </button>
+            }
+            <a class="btn-primary"
+               href="/api/expediente/@prestamo.Id"
+               target="_blank"
+               style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                <i class="ti ti-file-type-pdf"></i> Descargar expediente
+            </a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(mensaje))
+    {
+        <div class="form-card" style="border-left:3px solid @(esError ? "#dc2626" : "#059669");
+                    margin-bottom:1rem;padding:.75rem 1rem;font-size:13px;">
+            <i class="ti @(esError ? "ti-alert-circle" : "ti-circle-check")"></i> @mensaje
+        </div>
+    }
+
+    <!-- Stats -->
+    <div class="stats-row" style="grid-template-columns: repeat(5, 1fr);">
+        <div class="stat-card">
+            <span class="stat-label">Importe otorgado</span>
+            <span class="stat-valor destacado">@prestamo.ImporteOtorgado.ToString("C")</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Pago quincenal</span>
+            <span class="stat-valor destacado">@prestamo.PagoQuincenal.ToString("C")</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Total a pagar</span>
+            <span class="stat-valor">@prestamo.TotalAPagar.ToString("C")</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Tasa quincenal</span>
+            <span class="stat-valor">@(prestamo.TasaInteres * 100)%</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">Status</span>
+            <span class="stat-valor">
+                <span class="badge badge-@prestamo.Status.ToString().ToLower()">
+                    @prestamo.Status
+                </span>
+            </span>
+        </div>
+    </div>
+
+    <!-- Datos del préstamo -->
+    <div class="detalle-grid" style="margin-top:1.25rem;">
+        <div class="detalle-card">
+            <h3>Datos del préstamo</h3>
+            <div class="detalle-fila"><span>Tipo</span><strong>@prestamo.TipoPrestamo</strong></div>
+            <div class="detalle-fila"><span>Fecha solicitud</span><strong>@prestamo.FechaSolicitud.ToString("dd/MM/yyyy")</strong></div>
+            <div class="detalle-fila"><span>Importe solicitado</span><strong>@prestamo.ImporteSolicitado.ToString("C")</strong></div>
+            <div class="detalle-fila"><span>Importe otorgado</span><strong>@prestamo.ImporteOtorgado.ToString("C")</strong></div>
+            <div class="detalle-fila"><span>No. quincenas</span><strong>@prestamo.NumeroDescuentos</strong></div>
+            <div class="detalle-fila"><span>Quincena inicial</span><strong>QNA @prestamo.QuincenaInicial.ToString("D2")/@prestamo.AnioInicial</strong></div>
+            <div class="detalle-fila"><span>Quincena final</span><strong>QNA @prestamo.QuincenaFinal.ToString("D2")/@prestamo.AnioFinal</strong></div>
+        </div>
+        <div class="detalle-card">
+            <h3>Pago al trabajador</h3>
+            <div class="detalle-fila"><span>Forma de pago</span><strong>@(prestamo.EsTransferencia ? "Transferencia" : "Cheque")</strong></div>
+            <div class="detalle-fila"><span>@(prestamo.EsTransferencia ? "Referencia" : "No. cheque")</span><strong>@prestamo.NumeroChequeFolio</strong></div>
+            <div class="detalle-fila"><span>Fecha</span><strong>@(prestamo.FechaTransferencia?.ToString("dd/MM/yyyy") ?? "—")</strong></div>
+            <div class="detalle-fila"><span>Importe entregado</span><strong>@(prestamo.ImporteChequeFolio?.ToString("C") ?? "—")</strong></div>
+            @if (!string.IsNullOrEmpty(prestamo.Observaciones))
+            {
+                <div class="detalle-fila" style="flex-direction:column; gap:4px;">
+                    <span>Observaciones</span>
+                    <strong style="text-align:left;">@prestamo.Observaciones</strong>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Finiquito con ahorro -->
+    @if (prestamo.Status == StatusPrestamo.Activo)
+    {
+        <div class="detalle-card" style="margin-top:1.25rem;">
+            <h3><i class="ti ti-piggy-bank"></i> Finiquito con ahorro</h3>
+
+            <label style="display:flex;align-items:center;gap:.5rem;margin:.5rem 0;cursor:pointer;font-size:13px;">
+                <input type="checkbox" @bind="usarAhorro" @bind:after="GuardarPreferenciaAhorro" />
+                El socio desea que su ahorro se use para terminar de pagar este crédito
+            </label>
+
+            @if (usarAhorro)
+            {
+                <div style="display:flex;gap:1rem;align-items:flex-end;flex-wrap:wrap;">
+                    <div class="form-group" style="margin-bottom:0;max-width:220px;">
+                        <label>Monto de ahorro a destinar ($)</label>
+                        <input class="form-control" type="number" min="0" step="100"
+                               @bind="montoAhorroDeseado" @bind:after="GuardarPreferenciaAhorro" />
+                    </div>
+                    <div style="font-size:13px;padding-bottom:6px;">
+                        Ahorro acumulado del socio:
+                        <strong style="color:#059669;">@ahorroAcumulado.ToString("C")</strong>
+                        @if (montoAhorroDeseado > 0)
+                        {
+                            @if (ahorroAcumulado >= montoAhorroDeseado)
+                            {
+                                <span class="badge badge-pago-aplicado" style="margin-left:6px;">
+                                    ✓ Ya alcanza
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-pago-diferencia" style="margin-left:6px;">
+                                    Lleva @((ahorroAcumulado / montoAhorroDeseado * 100).ToString("N0"))% — faltan @((montoAhorroDeseado - ahorroAcumulado).ToString("C"))
+                                </span>
+                            }
+                        }
+                    </div>
+                    <button class="btn-primary" style="margin-bottom:2px;"
+                            disabled="@(montoAhorroDeseado <= 0 || ahorroAcumulado < montoAhorroDeseado)"
+                            @onclick="AbrirFiniquitoAhorro">
+                        <i class="ti ti-circle-check"></i> Aplicar ahorro al finiquito
+                    </button>
+                </div>
+                <p class="text-muted" style="font-size:11px;margin-top:.5rem;margin-bottom:0;">
+                    Cuando el ahorro acumulado alcance el monto destinado, el botón se habilita
+                    y el monto se aplica como abono a capital (reduce las últimas quincenas del
+                    crédito o lo liquida por completo). El registro del ahorro del socio NO se
+                    modifica en el sistema — el dinero se toma al entregarle su ahorro.
+                </p>
+            }
+        </div>
+    }
+
+    <!-- Tabla de amortización -->
+    <div style="margin-top:1.5rem;">
+        <h2 style="font-size:16px;font-weight:600;margin-bottom:1rem;">Tabla de amortización</h2>
+        <div class="table-container">
+            <table class="tabla">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Quincena</th>
+                        <th class="text-right">Saldo ini.</th>
+                        <th class="text-right">Interés</th>
+                        <th class="text-right">Capital</th>
+                        <th class="text-right">Pago</th>
+                        <th class="text-right">Saldo fin.</th>
+                        <th class="text-right">Aplicado</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in prestamo.Amortizacion.OrderBy(a => a.NumeroPago))
+                    {
+                        var desg = desglose.TryGetValue(d.NumeroPago, out var v)
+                            ? v : (Interes: d.Interes, Capital: d.Capital);
+                        <tr class="@(d.StatusPago == StatusPago.Diferencia ? "fila-alerta" : d.StatusPago == StatusPago.Suspendido ? "fila-suspendida" : "")">
+                            <td>@d.NumeroPago</td>
+                            <td>@PrestamoService.FormatoQuincena(d.Quincena, d.Anio)</td>
+                            <td class="text-right">@d.SaldoInicial.ToString("C")</td>
+                            <td class="text-right">@desg.Interes.ToString("C")</td>
+                            <td class="text-right">@desg.Capital.ToString("C")</td>
+                            <td class="text-right">@d.Pago.ToString("C")</td>
+                            <td class="text-right">@d.SaldoFinal.ToString("C")</td>
+                            <td class="text-right">
+                                @(d.MontoAplicado.HasValue ? d.MontoAplicado.Value.ToString("C") : "—")
+                            </td>
+                            <td>
+                                <span class="badge badge-pago-@d.StatusPago.ToString().ToLower()">
+                                    @d.StatusPago
+                                </span>
+                                @if (!string.IsNullOrEmpty(d.Observaciones))
+                                {
+                                    <i class="ti ti-message-circle" title="@d.Observaciones"
+                                       style="color:#2563eb; margin-left:4px; cursor:help;"></i>
+                                }
+                            </td>
+                            <td class="text-right">
+                                <button class="btn-icon" title="Editar pago"
+                                        @onclick="() => AbrirEdicionPago(d)">
+                                    <i class="ti ti-pencil"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr class="fila-totales">
+                        <td colspan="3"></td>
+                        <td class="text-right">@desglose.Values.Sum(x => x.Interes).ToString("C")</td>
+                        <td class="text-right">@desglose.Values.Sum(x => x.Capital).ToString("C")</td>
+                        <td class="text-right">@prestamo.Amortizacion.Sum(a => a.Pago).ToString("C")</td>
+                        <td colspan="4"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+}
+
+@* ── Modal: abono extra a capital ───────────────────────────────────────── *@
+@if (mostrarAbono && prestamo is not null)
+{
+    <div class="modal-backdrop" @onclick="CerrarModales">
+        <div class="form-card" style="max-width:520px;margin:6vh auto;" @onclick:stopPropagation="true">
+            <h2 style="margin-top:0;"><i class="ti ti-cash-banknote"></i> Abono extra a capital</h2>
+            <p class="text-muted" style="font-size:12px;">
+                Captura solo el EXCEDENTE que va a capital. El pago quincenal normal
+                de la quincena llega por la retención de nómina o la captura manual,
+                como siempre. Ej.: depositó $4,000 y su pago es $2,000 → aquí se
+                capturan $2,000.
+            </p>
+
+            <div class="form-group">
+                <label>Monto extra a capital ($)</label>
+                <input class="form-control" type="number" min="0" step="100"
+                       @bind="montoAbono" @bind:after="SimularAbono" />
+            </div>
+
+            <div class="form-group">
+                <label>¿Cómo aplicar el abono?</label>
+                <label style="display:flex;align-items:center;gap:.5rem;font-size:13px;cursor:pointer;">
+                    <input type="radio" name="modoAbono" checked="@(modoAbono == PrestamoService.ModoAbonoCapital.ReducirPagos)"
+                           @onchange="@(() => CambiarModoAbono(PrestamoService.ModoAbonoCapital.ReducirPagos))" />
+                    Reducir el número de pagos (mismo pago quincenal, el crédito termina antes)
+                </label>
+                <label style="display:flex;align-items:center;gap:.5rem;font-size:13px;cursor:pointer;">
+                    <input type="radio" name="modoAbono" checked="@(modoAbono == PrestamoService.ModoAbonoCapital.ReducirMonto)"
+                           @onchange="@(() => CambiarModoAbono(PrestamoService.ModoAbonoCapital.ReducirMonto))" />
+                    Reducir el pago quincenal (mismas quincenas, pago más chico)
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label>Observación</label>
+                <input class="form-control" @bind="observacionAbono" maxlength="200"
+                       placeholder="ej. depositó $4,000 en ventanilla; excedente a capital" />
+            </div>
+
+            @if (simulacion is not null)
+            {
+                @if (!simulacion.EsValida)
+                {
+                    <div class="alert-error" style="font-size:12px;">@simulacion.Error</div>
+                }
+                else
+                {
+                    <div class="aviso-info" style="font-size:12px;">
+                        <i class="ti ti-calculator"></i>
+                        <div>
+                            @if (simulacion.LiquidaPrestamo)
+                            {
+                                <strong>Este abono LIQUIDA el préstamo por completo.</strong>
+                                @if (simulacion.Sobrante > 0)
+                                {
+                                    <div>Sobrante a favor del socio: <strong>@simulacion.Sobrante.ToString("C")</strong></div>
+                                }
+                            }
+                            else
+                            {
+                                <div>Capital pendiente: @simulacion.CapitalPendienteAntes.ToString("C") → <strong>@simulacion.CapitalPendienteDespues.ToString("C")</strong></div>
+                                <div>Quincenas pendientes: @simulacion.QuincenasPendientesAntes → <strong>@simulacion.QuincenasPendientesDespues</strong></div>
+                                <div>Pago quincenal: @simulacion.PagoQuincenalAntes.ToString("C") → <strong>@simulacion.PagoQuincenalDespues.ToString("C")</strong></div>
+                                <div>Última quincena: @simulacion.QuincenaFinalAntes → <strong>@simulacion.QuincenaFinalDespues</strong></div>
+                            }
+                            @if (simulacion.InteresQueSeDejaDeCobrar > 0)
+                            {
+                                <div>Interés que ya no se cobra: <strong>@simulacion.InteresQueSeDejaDeCobrar.ToString("C")</strong></div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">
+                <button class="btn-secondary" @onclick="CerrarModales" disabled="@guardando">Cancelar</button>
+                <button class="btn-primary" @onclick="GuardarAbono"
+                        disabled="@(guardando || simulacion is null || !simulacion.EsValida)">
+                    <i class="ti ti-device-floppy"></i> @(guardando ? "Aplicando..." : "Aplicar abono")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Modal: cambiar status del préstamo ─────────────────────────────────── *@
+@if (mostrarCambioStatus && prestamo is not null)
+{
+    <div class="modal-backdrop" @onclick="CerrarModales">
+        <div class="form-card" style="max-width:440px;margin:8vh auto;" @onclick:stopPropagation="true">
+            <h2 style="margin-top:0;">Cambiar status del préstamo</h2>
+            <p class="text-muted" style="font-size:13px;">
+                Status actual:
+                <span class="badge badge-@prestamo.Status.ToString().ToLower()">@prestamo.Status</span>
+            </p>
+
+            <div class="form-group">
+                <label>Nuevo status</label>
+                <select class="form-control" @bind="nuevoStatus">
+                    <option value="@StatusPrestamo.Activo">Activo</option>
+                    <option value="@StatusPrestamo.Liquidado">Liquidado</option>
+                    <option value="@StatusPrestamo.Cancelado">Cancelado</option>
+                    <option value="@StatusPrestamo.Reestructurado">Reestructurado</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Motivo (opcional)</label>
+                <input class="form-control" @bind="motivoCambio"
+                       placeholder="ej. liquidación anticipada en ventanilla" maxlength="200" />
+            </div>
+
+            <div class="aviso-info" style="font-size:12px;">
+                <i class="ti ti-info-circle"></i>
+                <div>
+                    El cambio quedará registrado en las observaciones del préstamo con
+                    fecha y motivo. Los pagos de la amortización no se modifican; si
+                    necesitas corregir alguno, edítalo directamente en la tabla.
+                </div>
+            </div>
+
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">
+                <button class="btn-secondary" @onclick="CerrarModales" disabled="@guardando">Cancelar</button>
+                <button class="btn-primary" @onclick="GuardarCambioStatus" disabled="@guardando">
+                    <i class="ti ti-device-floppy"></i> @(guardando ? "Guardando..." : "Guardar")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Modal: editar pago de la amortización ──────────────────────────────── *@
+@if (detalleEditando is not null)
+{
+    <div class="modal-backdrop" @onclick="CerrarModales">
+        <div class="form-card" style="max-width:440px;margin:8vh auto;" @onclick:stopPropagation="true">
+            <h2 style="margin-top:0;">
+                Editar pago #@detalleEditando.NumeroPago —
+                @PrestamoService.FormatoQuincena(detalleEditando.Quincena, detalleEditando.Anio)
+            </h2>
+            <p class="text-muted" style="font-size:13px;">
+                Pago esperado: <strong>@detalleEditando.Pago.ToString("C")</strong>
+                · Status actual:
+                <span class="badge badge-pago-@detalleEditando.StatusPago.ToString().ToLower()">
+                    @detalleEditando.StatusPago
+                </span>
+            </p>
+
+            <div class="form-group">
+                <label>Monto aplicado</label>
+                <input class="form-control" type="number" step="0.01" min="0"
+                       @bind="montoEditado" @bind:after="SugerirStatus" />
+            </div>
+
+            <div class="form-group">
+                <label>Status del pago</label>
+                <select class="form-control" @bind="statusEditado">
+                    <option value="@StatusPago.Pendiente">Pendiente</option>
+                    <option value="@StatusPago.Aplicado">Aplicado</option>
+                    <option value="@StatusPago.Diferencia">Diferencia</option>
+                    <option value="@StatusPago.Suspendido">Suspendido</option>
+                </select>
+                <span class="text-muted" style="font-size:12px;display:block;margin-top:4px;">
+                    Al capturar el monto se sugiere el status automáticamente
+                    (puedes cambiarlo). Si eliges <strong>Pendiente</strong> se borra
+                    el monto aplicado y el pago vuelve a quedar disponible para las
+                    importaciones de retenciones.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label>Observación (opcional)</label>
+                <input class="form-control" @bind="observacionEditada" maxlength="300"
+                       placeholder="ej. el trabajador aportó de más / se aplicó su ahorro al crédito" />
+                <span class="text-muted" style="font-size:12px;display:block;margin-top:4px;">
+                    Útil en aportaciones extra: deja registrado por qué el monto
+                    difiere del pago quincenal normal.
+                </span>
+            </div>
+
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">
+                <button class="btn-secondary" @onclick="CerrarModales" disabled="@guardando">Cancelar</button>
+                <button class="btn-primary" @onclick="GuardarEdicionPago" disabled="@guardando">
+                    <i class="ti ti-device-floppy"></i> @(guardando ? "Guardando..." : "Guardar")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private Prestamo? prestamo;
+    private bool cargando = true;
+
+    // Desglose interés/capital derivado (NumeroPago → (interés, capital)).
+    // Se calcula al vuelo para que también funcione en préstamos viejos.
+    private Dictionary<int, (decimal Interes, decimal Capital)> desglose = new();
+
+    // Mensajes
+    private string mensaje = "";
+    private bool esError;
+    private bool guardando;
+
+    // Modal abono a capital
+    private bool mostrarAbono;
+    private decimal montoAbono;
+    private PrestamoService.ModoAbonoCapital modoAbono = PrestamoService.ModoAbonoCapital.ReducirPagos;
+    private string observacionAbono = "";
+    private PrestamoService.SimulacionAbono? simulacion;
+
+    // Finiquito con ahorro
+    private bool usarAhorro;
+    private decimal montoAhorroDeseado;
+    private decimal ahorroAcumulado;
+
+    // Modal cambio de status
+    private bool mostrarCambioStatus;
+    private StatusPrestamo nuevoStatus;
+    private string motivoCambio = "";
+
+    // Modal edición de pago
+    private AmortizacionDetalle? detalleEditando;
+    private decimal montoEditado;
+    private StatusPago statusEditado;
+    private string observacionEditada = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        cargando = true;
+        prestamo = await PrestamoService.ObtenerPorIdAsync(Id);
+        if (prestamo is not null)
+        {
+            desglose = PrestamoService.DesgloseInteresCapital(prestamo);
+            usarAhorro = prestamo.UsarAhorroParaFiniquito;
+            montoAhorroDeseado = prestamo.MontoAhorroFiniquito ?? 0;
+            ahorroAcumulado = await AhorroSvc.TotalAhorradoAsync(prestamo.SocioId);
+        }
+        cargando = false;
+    }
+
+    // ── Cambio de status ────────────────────────────────────────────────────
+
+    private void AbrirCambioStatus()
+    {
+        if (prestamo is null) return;
+        nuevoStatus = prestamo.Status;
+        motivoCambio = "";
+        mensaje = "";
+        mostrarCambioStatus = true;
+    }
+
+    private async Task GuardarCambioStatus()
+    {
+        if (prestamo is null) return;
+        guardando = true;
+        try
+        {
+            await PrestamoService.CambiarStatusManualAsync(
+                prestamo.Id, nuevoStatus, motivoCambio);
+
+            mostrarCambioStatus = false;
+            esError = false;
+            mensaje = $"Status actualizado a {nuevoStatus}.";
+            await CargarAsync();
+        }
+        catch (Exception ex)
+        {
+            esError = true;
+            mensaje = $"No se pudo cambiar el status: {ex.Message}";
+        }
+        finally
+        {
+            guardando = false;
+            StateHasChanged();
+        }
+    }
+
+    // ── Edición de pago ─────────────────────────────────────────────────────
+
+    private void AbrirEdicionPago(AmortizacionDetalle d)
+    {
+        detalleEditando = d;
+        montoEditado = d.MontoAplicado ?? d.Pago;
+        statusEditado = d.StatusPago == StatusPago.Pendiente
+            ? PrestamoService.SugerirStatusPago(montoEditado, d.Pago)
+            : d.StatusPago;
+        observacionEditada = d.Observaciones ?? "";
+        mensaje = "";
+    }
+
+    private void SugerirStatus()
+    {
+        if (detalleEditando is null) return;
+        statusEditado = PrestamoService.SugerirStatusPago(montoEditado, detalleEditando.Pago);
+    }
+
+    private async Task GuardarEdicionPago()
+    {
+        if (detalleEditando is null) return;
+        guardando = true;
+        try
+        {
+            await PrestamoService.EditarPagoAmortizacionAsync(
+                detalleEditando.Id, montoEditado, statusEditado, observacionEditada);
+
+            var num = detalleEditando.NumeroPago;
+            detalleEditando = null;
+            esError = false;
+            mensaje = $"Pago #{num} actualizado.";
+            await CargarAsync();
+        }
+        catch (Exception ex)
+        {
+            esError = true;
+            mensaje = $"No se pudo actualizar el pago: {ex.Message}";
+        }
+        finally
+        {
+            guardando = false;
+            StateHasChanged();
+        }
+    }
+
+    // ── Abono a capital ─────────────────────────────────────────────────────
+
+    private void AbrirAbonoCapital()
+    {
+        montoAbono = 0;
+        modoAbono = PrestamoService.ModoAbonoCapital.ReducirPagos;
+        observacionAbono = "";
+        simulacion = null;
+        mensaje = "";
+        mostrarAbono = true;
+    }
+
+    private void SimularAbono()
+    {
+        if (prestamo is null) { simulacion = null; return; }
+        simulacion = montoAbono > 0
+            ? PrestamoService.SimularAbonoCapital(prestamo, montoAbono, modoAbono)
+            : null;
+    }
+
+    private void CambiarModoAbono(PrestamoService.ModoAbonoCapital m)
+    {
+        modoAbono = m;
+        SimularAbono();
+    }
+
+    private async Task GuardarAbono()
+    {
+        if (prestamo is null || simulacion is null || !simulacion.EsValida) return;
+        guardando = true;
+        try
+        {
+            var res = await PrestamoService.AplicarAbonoCapitalAsync(
+                prestamo.Id, montoAbono, modoAbono, observacionAbono);
+
+            mostrarAbono = false;
+            esError = !res.EsValida;
+            mensaje = res.EsValida
+                ? (res.LiquidaPrestamo
+                    ? "Abono aplicado — el préstamo quedó LIQUIDADO."
+                    : $"Abono de {montoAbono:C} aplicado; tabla de amortización recalculada.")
+                : $"No se pudo aplicar: {res.Error}";
+            await CargarAsync();
+        }
+        catch (Exception ex)
+        {
+            esError = true;
+            mensaje = $"No se pudo aplicar el abono: {ex.InnerException?.Message ?? ex.Message}";
+        }
+        finally
+        {
+            guardando = false;
+            StateHasChanged();
+        }
+    }
+
+    // ── Finiquito con ahorro ────────────────────────────────────────────────
+
+    private async Task GuardarPreferenciaAhorro()
+    {
+        if (prestamo is null) return;
+        try
+        {
+            await PrestamoService.GuardarPreferenciaAhorroAsync(
+                prestamo.Id, usarAhorro, montoAhorroDeseado > 0 ? montoAhorroDeseado : null);
+        }
+        catch (Exception ex)
+        {
+            esError = true;
+            mensaje = $"No se pudo guardar la preferencia: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    private async Task AbrirFiniquitoAhorro()
+    {
+        if (prestamo is null) return;
+        // Reutiliza el motor de abono a capital: el ahorro comprometido entra
+        // como abono en modo "reducir pagos" (cierra las últimas quincenas o
+        // liquida el crédito), con observación automática.
+        montoAbono = montoAhorroDeseado;
+        modoAbono = PrestamoService.ModoAbonoCapital.ReducirPagos;
+        observacionAbono = $"Finiquito con ahorro del socio ({montoAhorroDeseado:C} de {ahorroAcumulado:C} acumulado)";
+        SimularAbono();
+        mensaje = "";
+        mostrarAbono = true;
+        await Task.CompletedTask;
+    }
+
+    private void CerrarModales()
+    {
+        if (guardando) return;
+        mostrarCambioStatus = false;
+        detalleEditando = null;
+        mostrarAbono = false;
+    }
+}

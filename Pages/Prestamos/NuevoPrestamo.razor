@@ -1,0 +1,796 @@
+@page "/prestamos/nuevo/{SocioId:int}"
+@page "/prestamos/nuevo"
+@inject PrestamoService PrestamoService
+@inject SocioService SocioService
+@inject AhorroImportService AhorroSvc
+@inject NavigationManager Nav
+
+<PageTitle>Nuevo Préstamo — Caja de Ahorro</PageTitle>
+
+<style>
+    .modal-backdrop {
+        position: fixed; inset: 0; background: rgba(17,24,39,.45);
+        z-index: 1000; overflow-y: auto;
+    }
+</style>
+
+<div class="page-header">
+    <div>
+        <h1>Nuevo préstamo</h1>
+        <p class="text-muted">
+            @if (paso == 2 && socioSeleccionado is not null)
+            {
+                <span>@socioSeleccionado.Nombre</span>
+            }
+            else
+            {
+                <span>Busca al trabajador para continuar</span>
+            }
+        </p>
+    </div>
+    <button class="btn-secondary" @onclick="Regresar">
+        <i class="ti ti-arrow-left"></i> Regresar
+    </button>
+</div>
+
+@if (cargando)
+{
+    <div class="loading">Cargando...</div>
+}
+else
+{
+    <!-- ── PASO 1: BÚSQUEDA ──────────────────────────────────── -->
+    @if (paso == 1)
+    {
+        <div class="form-card" style="max-width:580px;">
+            <div class="form-section" style="margin-bottom:0;border-bottom:none;padding-bottom:0;">
+                <h2>¿A quién se le otorga el préstamo?</h2>
+                <p class="text-muted" style="margin:0.5rem 0 1.25rem;">
+                    Escribe el nombre o RFC del trabajador.
+                </p>
+
+                <div class="form-group" style="position:relative;">
+                    <input type="text"
+                           placeholder="Buscar trabajador..."
+                           value="@termino"
+                           @oninput="OnBusquedaInput"
+                           autocomplete="off"
+                           style="font-size:15px; padding:10px 14px;" />
+
+                    @if (buscando)
+                    {
+                        <div class="dropdown-resultados">
+                            <div class="dropdown-vacio">Buscando...</div>
+                        </div>
+                    }
+                    else if (mostrarDropdown && termino.Length >= 2 && resultados.Any())
+                    {
+                        <div class="dropdown-resultados">
+                            @foreach (var s in resultados)
+                            {
+                                <div class="dropdown-item" @onclick="() => SeleccionarSocio(s)">
+                                    <strong>@s.Nombre</strong>
+                                    <span>@s.RFC · @s.TipoNombramiento · @s.Adscripcion</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else if (mostrarDropdown && termino.Length >= 2 && !resultados.Any() && !buscando)
+                    {
+                        <div class="dropdown-resultados">
+                            <div class="dropdown-vacio">
+                                <i class="ti ti-user-off"></i>
+                                No se encontró ningún trabajador.
+                            </div>
+                            <div class="dropdown-accion" @onclick="IrANuevoSocio">
+                                <i class="ti ti-user-plus"></i>
+                                <span>Dar de alta nuevo trabajador</span>
+                                <i class="ti ti-chevron-right" style="margin-left:auto;"></i>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div class="paso1-footer">
+                    <span class="text-muted">¿El trabajador no está registrado?</span>
+                    <button class="btn-link" @onclick="IrANuevoSocio">
+                        <i class="ti ti-user-plus"></i> Dar de alta aquí
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- ── PASO 2: FORMULARIO DE PRÉSTAMO ───────────────────── -->
+    @if (paso == 2 && socioSeleccionado is not null)
+    {
+        <div class="form-grid">
+            <div class="form-card">
+
+                <!-- Socio confirmado -->
+                <div class="form-section">
+                    <h2>Trabajador</h2>
+                    <div class="socio-seleccionado">
+                        <div class="socio-info">
+                            <i class="ti ti-user-check"></i>
+                            <div>
+                                <strong>@socioSeleccionado.Nombre</strong>
+                                <span>@socioSeleccionado.RFC · @socioSeleccionado.TipoNombramiento · @socioSeleccionado.Adscripcion</span>
+                            </div>
+                        </div>
+                        @if (!SocioId.HasValue)
+                        {
+                            <button class="btn-icon" type="button" @onclick="VolverBusqueda"
+                                    title="Cambiar trabajador">
+                                <i class="ti ti-x"></i>
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <!-- ── Aviso de préstamo activo previo ──────────────── -->
+                @if (prestamosActivos.Any())
+                {
+                    <div class="form-section">
+                        <div class="aviso-warning">
+                            <i class="ti ti-alert-triangle"></i>
+                            <div>
+                                <strong>Este trabajador ya tiene @prestamosActivos.Count préstamo(s) activo(s).</strong>
+                                <div style="margin-top:4px;">
+                                    Debe <strong>@saldoCapitalPendienteTotal.ToString("C")</strong> de capital,
+                                    más <strong>@((saldoPendienteTotal - saldoCapitalPendienteTotal).ToString("C"))</strong> de
+                                    intereses de las quincenas que faltan
+                                    (deuda total: @saldoPendienteTotal.ToString("C")).
+                                    ¿Cómo deseas proceder?
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="opciones-prestamo">
+                            <div class="opcion-card @(modo == PrestamoService.ModoPrestamo.Reestructura ? "seleccionada" : "")"
+                                 @onclick="IntentarReestructurar">
+                                <h4><i class="ti ti-refresh"></i> Reestructurar</h4>
+                                <p>
+                                    Se liquida el capital pendiente del préstamo anterior
+                                    (@saldoCapitalPendienteTotal.ToString("C")) y se otorga uno nuevo.
+                                    El préstamo previo queda marcado como <em>Reestructurado</em>.
+                                </p>
+                            </div>
+                            <div class="opcion-card @(modo == PrestamoService.ModoPrestamo.SegundoPrestamo ? "seleccionada" : "")"
+                                 @onclick="() => SeleccionarModo(PrestamoService.ModoPrestamo.SegundoPrestamo)">
+                                <h4><i class="ti ti-layers-intersect"></i> Segundo préstamo</h4>
+                                <p>
+                                    Se conserva el préstamo anterior y se otorga uno adicional
+                                    en paralelo. Ambos descuentos correrán a la vez.
+                                </p>
+                            </div>
+                        </div>
+
+                        @if (modo == PrestamoService.ModoPrestamo.Reestructura && prestamosActivos.Count > 1)
+                        {
+                            <div class="form-group" style="margin-top:0.75rem;">
+                                <label>¿Cuál préstamo se reestructura?</label>
+                                <select @bind="prestamoAnteriorId" @bind:after="RecalcularImporteEntregado">
+                                    @foreach (var pa in prestamosActivos)
+                                    {
+                                        <option value="@pa.Id">
+                                            #@pa.Id · @pa.ImporteOtorgado.ToString("C") · saldo @PrestamoService.SaldoPendiente(pa).ToString("C")
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- Datos del préstamo -->
+                <div class="form-section">
+                    <h2>Datos del préstamo</h2>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Tipo de préstamo</label>
+                            <select @bind="prestamo.TipoPrestamo">
+                                <option value="@TipoPrestamo.Ordinario">Ordinario</option>
+                                <option value="@TipoPrestamo.Reestructura">Reestructura</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Fecha de solicitud</label>
+                            <input type="date" @bind="prestamo.FechaSolicitud" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Importe solicitado ($)</label>
+                            <input type="number" @bind="prestamo.ImporteSolicitado"
+                                   min="0" step="100" />
+                        </div>
+                        <div class="form-group">
+                            <label>Importe otorgado ($)</label>
+                            <input type="number" value="@prestamo.ImporteOtorgado"
+                                   @onchange="OnImporteChange" min="0" step="100" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Número de quincenas</label>
+                            <select value="@prestamo.NumeroDescuentos"
+                                    @onchange="OnQuincenasChange">
+                                <option value="6">6 quincenas</option>
+                                <option value="12">12 quincenas</option>
+                                <option value="18">18 quincenas</option>
+                                <option value="24">24 quincenas</option>
+                                <option value="36">36 quincenas</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Tasa de interés quincenal (%)</label>
+                            <input type="number" value="@tasaPorcentaje"
+                                   @onchange="OnTasaChange" min="0" max="20" step="0.5" />
+                            <span class="campo-hint" style="font-size:11px;">
+                                @if (esAhorrador)
+                                {
+                                    <span style="color:#059669;">
+                                        <i class="ti ti-piggy-bank"></i> Socio con ahorro registrado — sugerido 2.5%
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span style="color:#6b7280;">
+                                        Sin ahorro registrado — sugerido 3%
+                                    </span>
+                                }
+                                (puedes ajustarla si es un caso especial)
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Pago con fondo de ahorro ($)</label>
+                            <input type="number" value="@prestamo.AportacionAhorroInicial"
+                                   @onchange="OnAhorroInicialChange" min="0" step="500" />
+                            <span class="campo-hint" style="font-size:11px; color:#6b7280;">
+                                Parte del crédito que el socio cubre con su fondo de ahorro (se aplica
+                                al final). No cambia el total a pagar ni los intereses, pero reduce el
+                                pago quincenal. Déjalo en 0 si no aplica.
+                            </span>
+                        </div>
+                        <div class="form-group">
+                            <!-- espaciador para mantener la cuadrícula de 2 columnas -->
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Quincena inicial</label>
+                            <select value="@prestamo.QuincenaInicial"
+                                    @onchange="OnQuincenaInicialChange">
+                                @for (int q = 1; q <= 24; q++)
+                                {
+                                    var qv = q;
+                                    <option value="@qv">Quincena @qv</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Año inicial</label>
+                            <input type="number" value="@prestamo.AnioInicial"
+                                   @onchange="OnAnioChange" min="2020" max="2040" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pago al socio -->
+                <div class="form-section">
+                    <h2>Pago al trabajador</h2>
+                    <div class="form-group">
+                        <label>Forma de pago</label>
+                        <div class="radio-group">
+                            <label>
+                                <input type="radio" name="formaPago" value="true"
+                                       checked="@prestamo.EsTransferencia"
+                                       @onchange="@(() => prestamo.EsTransferencia = true)" />
+                                Transferencia
+                            </label>
+                            <label>
+                                <input type="radio" name="formaPago" value="false"
+                                       checked="@(!prestamo.EsTransferencia)"
+                                       @onchange="@(() => prestamo.EsTransferencia = false)" />
+                                Cheque
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>@(prestamo.EsTransferencia ? "Referencia" : "No. de cheque")</label>
+                            <input type="text" @bind="prestamo.NumeroChequeFolio" />
+                        </div>
+                        <div class="form-group">
+                            <label>Fecha de pago</label>
+                            <input type="date" @bind="prestamo.FechaTransferencia" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Importe entregado ($)</label>
+                        <input type="number" @bind="prestamo.ImporteChequeFolio"
+                               min="0" step="0.01" />
+                        @if (modo == PrestamoService.ModoPrestamo.Reestructura)
+                        {
+                            <span class="campo-hint" style="font-size:11px; color:#6b7280;">
+                                <i class="ti ti-calculator"></i>
+                                Calculado: @prestamo.ImporteOtorgado.ToString("C") otorgado
+                                − @SaldoPrestamoAReestructurar.ToString("C") saldo de CAPITAL del préstamo anterior
+                                (sin intereses futuros). Puedes ajustarlo si hace falta.
+                            </span>
+                        }
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Observaciones</label>
+                    <textarea @bind="prestamo.Observaciones" rows="3"
+                              placeholder="Notas adicionales..."></textarea>
+                </div>
+
+                @if (!string.IsNullOrEmpty(error))
+                {
+                    <div class="alert-error" style="margin-bottom:1rem;">@error</div>
+                }
+
+                <div class="form-actions">
+                    <button class="btn-secondary" @onclick="Regresar">Cancelar</button>
+                    <button class="btn-primary" @onclick="Guardar" disabled="@guardando">
+                        @if (guardando)
+                        {
+                            <span>Guardando...</span>
+                        }
+                        else
+                        {
+                            <span><i class="ti ti-device-floppy"></i> Guardar préstamo</span>
+                        }
+                    </button>
+                </div>
+            </div>
+
+            <!-- Resumen y amortización -->
+            <div class="resumen-card">
+                <div class="resumen-header"><h2>Resumen del crédito</h2></div>
+                <div class="resumen-grid">
+                    <div class="resumen-item">
+                        <span class="resumen-label">Importe otorgado</span>
+                        <span class="resumen-valor">@prestamo.ImporteOtorgado.ToString("C")</span>
+                    </div>
+                    <div class="resumen-item">
+                        <span class="resumen-label">Total intereses (@((prestamo.NumeroDescuentos + 2)) qnas × @(prestamo.TasaInteres * 100)%)</span>
+                        <span class="resumen-valor">@((totalAPagar - prestamo.ImporteOtorgado).ToString("C"))</span>
+                    </div>
+                    <div class="resumen-item">
+                        <span class="resumen-label">Total a pagar</span>
+                        <span class="resumen-valor">@totalAPagar.ToString("C")</span>
+                    </div>
+                    @if (prestamo.AportacionAhorroInicial > 0)
+                    {
+                        <div class="resumen-item">
+                            <span class="resumen-label">Pago con fondo de ahorro</span>
+                            <span class="resumen-valor" style="color:#059669;">
+                                −@prestamo.AportacionAhorroInicial.ToString("C")
+                            </span>
+                        </div>
+                        <div class="resumen-item">
+                            <span class="resumen-label">Se cobra por quincenas</span>
+                            <span class="resumen-valor">@((totalAPagar - prestamo.AportacionAhorroInicial).ToString("C"))</span>
+                        </div>
+                    }
+                    <div class="resumen-item">
+                        <span class="resumen-label">Pago quincenal fijo</span>
+                        <span class="resumen-valor highlight">@pagoQuincenal.ToString("C")</span>
+                    </div>
+                    <div class="resumen-item">
+                        <span class="resumen-label">Quincenas a pagar</span>
+                        <span class="resumen-valor">@prestamo.NumeroDescuentos</span>
+                    </div>
+                    <div class="resumen-item">
+                        <span class="resumen-label">Quincena final</span>
+                        <span class="resumen-valor">@quincenaFinalTexto</span>
+                    </div>
+                </div>
+
+                @if (tablaAmortizacion.Any())
+                {
+                    <div class="amortizacion-header"><h3>Tabla de amortización</h3></div>
+                    <div class="amortizacion-scroll">
+                        <table class="tabla tabla-sm">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Quincena</th>
+                                    <th class="text-right">Pago</th>
+                                    <th class="text-right">Saldo pendiente</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var d in tablaAmortizacion)
+                                {
+                                    <tr>
+                                        <td>@d.NumeroPago</td>
+                                        <td>@PrestamoService.FormatoQuincena(d.Quincena, d.Anio)</td>
+                                        <td class="text-right">@d.Pago.ToString("C")</td>
+                                        <td class="text-right">@d.SaldoFinal.ToString("C")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}
+
+@* ── Modal: confirmar reestructura ──────────────────────────────────────── *@
+@if (mostrarConfirmaReestructura)
+{
+    <div class="modal-backdrop" @onclick="() => mostrarConfirmaReestructura = false">
+        <div class="form-card" style="max-width:460px;margin:10vh auto;" @onclick:stopPropagation="true">
+            <h2 style="margin-top:0;"><i class="ti ti-refresh"></i> Confirmar reestructura</h2>
+            <p style="font-size:14px; line-height:1.5;">
+                ¿Deseas pagar el préstamo anterior de <strong>@socioSeleccionado?.Nombre</strong>
+                (saldo de capital <strong>@SaldoPrestamoAReestructurar.ToString("C")</strong>) con el préstamo nuevo,
+                y otorgar el nuevo crédito?
+            </p>
+            <div class="aviso-info" style="font-size:12px;">
+                <i class="ti ti-info-circle"></i>
+                <div>
+                    El préstamo anterior quedará marcado como <strong>Reestructurado</strong> y su saldo
+                    pendiente se descuenta del importe que se le entrega al trabajador. El interés del
+                    nuevo préstamo se calcula sobre el importe otorgado completo.
+                </div>
+            </div>
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">
+                <button class="btn-secondary" @onclick="() => mostrarConfirmaReestructura = false">
+                    Cancelar
+                </button>
+                <button class="btn-primary" @onclick="ConfirmarReestructura">
+                    <i class="ti ti-circle-check"></i> Sí, reestructurar
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int? SocioId { get; set; }
+
+    private int   paso = 1;
+    private Socio? socioSeleccionado;
+
+    // Préstamos activos previos / modo de operación
+    private List<Prestamo> prestamosActivos    = new();
+    private decimal        saldoPendienteTotal = 0;         // capital + intereses futuros
+    private decimal        saldoCapitalPendienteTotal = 0;   // solo capital
+    private PrestamoService.ModoPrestamo modo  = PrestamoService.ModoPrestamo.Nuevo;
+    private int?           prestamoAnteriorId;
+    private bool            esAhorrador          = false;
+    private bool            mostrarConfirmaReestructura = false;
+
+    // Búsqueda
+    private string       termino        = "";
+    private List<Socio>  resultados     = new();
+    private bool         buscando       = false;
+    private bool         mostrarDropdown = false;
+    private System.Threading.CancellationTokenSource? _cts;
+
+    // Préstamo
+    // La quincena inicial de descuento por defecto es DOS quincenas después
+    // de hoy (una de margen administrativo + la de gracia del modelo de
+    // interés). El bug anterior solo miraba el día del mes (<=15 ? 1 : 2),
+    // ignorando el MES — por eso siempre proponía QNA 1 o 2 de ENERO sin
+    // importar en qué mes se otorgaba el préstamo.
+    private Prestamo prestamo = CrearPrestamoConDefaults();
+
+    private static Prestamo CrearPrestamoConDefaults()
+    {
+        var (q, a) = PrestamoService.QuincenaDeFecha(DateTime.Today);
+        (q, a) = PrestamoService.SiguienteQuincena(q, a);
+        (q, a) = PrestamoService.SiguienteQuincena(q, a);
+
+        return new Prestamo
+        {
+            FechaSolicitud   = DateTime.Today,
+            NumeroDescuentos = 24,
+            TasaInteres      = 0.03m,
+            QuincenaInicial  = q,
+            AnioInicial      = a,
+            EsTransferencia  = true
+        };
+    }
+
+    private List<AmortizacionDetalle> tablaAmortizacion = new();
+    private decimal tasaPorcentaje    = 3m;
+    private decimal pagoQuincenal     = 0;
+    private decimal totalAPagar       = 0;
+    private string  quincenaFinalTexto = "—";
+    private bool    guardando         = false;
+    private bool    cargando          = true;
+    private string  error             = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (SocioId.HasValue)
+        {
+            socioSeleccionado = await SocioService.ObtenerPorIdAsync(SocioId.Value);
+            if (socioSeleccionado is not null)
+            {
+                prestamo.SocioId = socioSeleccionado.Id;
+                paso = 2;
+                await CargarPrestamosActivos(socioSeleccionado.Id);
+                await SugerirTasaPorAhorro(socioSeleccionado.Id);
+                Calcular();
+            }
+        }
+        cargando = false;
+    }
+
+    // ── BÚSQUEDA CON DEBOUNCE ────────────────────────────────────────────────
+
+    private async Task OnBusquedaInput(ChangeEventArgs e)
+    {
+        termino        = e.Value?.ToString() ?? "";
+        mostrarDropdown = true;
+        resultados.Clear();
+
+        if (termino.Length < 2)
+        {
+            buscando = false;
+            return;
+        }
+
+        // Cancelar llamada anterior si el usuario sigue escribiendo
+        _cts?.Cancel();
+        _cts = new System.Threading.CancellationTokenSource();
+        var token = _cts.Token;
+
+        buscando = true;
+        StateHasChanged();
+
+        try
+        {
+            await Task.Delay(350, token);        // esperar 350 ms
+            if (token.IsCancellationRequested) return;
+
+            resultados = await SocioService.BuscarAsync(termino);
+        }
+        catch (TaskCanceledException) { return; }
+        finally
+        {
+            if (!token.IsCancellationRequested)
+            {
+                buscando = false;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task SeleccionarSocio(Socio s)
+    {
+        socioSeleccionado  = s;
+        prestamo.SocioId   = s.Id;
+        // NO asignar prestamo.Socio — EF Core lo resuelve solo por SocioId
+        termino            = "";
+        resultados.Clear();
+        mostrarDropdown    = false;
+        paso               = 2;
+        await CargarPrestamosActivos(s.Id);
+        await SugerirTasaPorAhorro(s.Id);
+        Calcular();
+    }
+
+    /// <summary>Si el socio tiene ahorro registrado, sugiere 2.5%; si no, 3%.
+    /// Es solo un valor por defecto — el operador puede ajustarlo (casos
+    /// especiales) desde el campo de tasa.</summary>
+    private async Task SugerirTasaPorAhorro(int socioId)
+    {
+        esAhorrador = await AhorroSvc.EsAhorradorAsync(socioId);
+        tasaPorcentaje       = esAhorrador ? 2.5m : 3m;
+        prestamo.TasaInteres = tasaPorcentaje / 100m;
+    }
+
+    private async Task CargarPrestamosActivos(int socioId)
+    {
+        prestamosActivos    = await PrestamoService.ObtenerActivosPorSocioAsync(socioId);
+        saldoPendienteTotal = prestamosActivos.Sum(PrestamoService.SaldoPendiente);
+        saldoCapitalPendienteTotal = prestamosActivos.Sum(PrestamoService.SaldoCapitalPendiente);
+        modo                = PrestamoService.ModoPrestamo.Nuevo;   // exige elección
+        prestamoAnteriorId  = prestamosActivos.FirstOrDefault()?.Id;
+    }
+
+    private void IntentarReestructurar()
+    {
+        // Pedir confirmación explícita antes de marcar el modo — reestructurar
+        // liquida el préstamo anterior con el nuevo, así que conviene que el
+        // operador lo confirme a propósito y no por un clic accidental.
+        mostrarConfirmaReestructura = true;
+    }
+
+    private void ConfirmarReestructura()
+    {
+        mostrarConfirmaReestructura = false;
+        SeleccionarModo(PrestamoService.ModoPrestamo.Reestructura);
+        RecalcularImporteEntregado();
+    }
+
+    private void SeleccionarModo(PrestamoService.ModoPrestamo m)
+    {
+        modo = m;
+        if (m == PrestamoService.ModoPrestamo.Reestructura)
+            prestamoAnteriorId ??= prestamosActivos.FirstOrDefault()?.Id;
+    }
+
+    /// <summary>Saldo de CAPITAL del préstamo que realmente se va a
+    /// reestructurar (no la suma de todos los activos, si el socio tiene más
+    /// de uno) — la reestructura se hace sobre lo que se debe de capital, no
+    /// sobre la deuda completa con intereses futuros incluidos.</summary>
+    private decimal SaldoPrestamoAReestructurar
+    {
+        get
+        {
+            var p = prestamosActivos.FirstOrDefault(x => x.Id == prestamoAnteriorId);
+            return p is not null ? PrestamoService.SaldoCapitalPendiente(p) : saldoCapitalPendienteTotal;
+        }
+    }
+
+    /// <summary>En reestructura, lo que de verdad se le entrega al trabajador
+    /// es la diferencia entre el nuevo préstamo y lo que aún debía del
+    /// anterior (ese saldo no se le da en efectivo, se descuenta internamente
+    /// para liquidar el préstamo previo). Se recalcula cada vez que cambia el
+    /// importe otorgado o cuál préstamo se está reestructurando; el operador
+    /// puede ajustarlo a mano después si hace falta.</summary>
+    private void RecalcularImporteEntregado()
+    {
+        if (modo != PrestamoService.ModoPrestamo.Reestructura) return;
+
+        var diferencia = prestamo.ImporteOtorgado - SaldoPrestamoAReestructurar;
+        prestamo.ImporteChequeFolio = diferencia > 0 ? Math.Round(diferencia, 2) : 0;
+    }
+
+    private void VolverBusqueda()
+    {
+        socioSeleccionado = null;
+        termino           = "";
+        resultados.Clear();
+        prestamosActivos.Clear();
+        saldoPendienteTotal = 0;
+        saldoCapitalPendienteTotal = 0;
+        modo                = PrestamoService.ModoPrestamo.Nuevo;
+        prestamoAnteriorId  = null;
+        esAhorrador         = false;
+        mostrarConfirmaReestructura = false;
+        paso              = 1;
+    }
+
+    private void IrANuevoSocio() => Nav.NavigateTo("/socios/nuevo");
+
+    // ── HANDLERS QUE NECESITAN RECALCULAR ───────────────────────────────────
+    // (solo los campos que afectan la amortización usan @onchange manual
+    //  para poder llamar Calcular() después de actualizar el modelo)
+
+    private void OnImporteChange(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var v))
+            prestamo.ImporteOtorgado = v;
+        RecalcularImporteEntregado();
+        Calcular();
+    }
+
+    private void OnQuincenasChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v))
+            prestamo.NumeroDescuentos = v;
+        Calcular();
+    }
+
+    private void OnTasaChange(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var v))
+        {
+            tasaPorcentaje      = v;
+            prestamo.TasaInteres = v / 100m;
+        }
+        Calcular();
+    }
+
+    private void OnAhorroInicialChange(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var v) && v >= 0)
+            prestamo.AportacionAhorroInicial = v;
+        Calcular();
+    }
+
+    private void OnQuincenaInicialChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v))
+            prestamo.QuincenaInicial = v;
+        Calcular();
+    }
+
+    private void OnAnioChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var v))
+            prestamo.AnioInicial = v;
+        Calcular();
+    }
+
+    private void Calcular()
+    {
+        if (prestamo.ImporteOtorgado <= 0 || prestamo.NumeroDescuentos <= 0) return;
+        tablaAmortizacion  = PrestamoService.CalcularAmortizacion(prestamo);
+        pagoQuincenal      = prestamo.PagoQuincenal;
+        totalAPagar        = prestamo.TotalAPagar;
+        if (tablaAmortizacion.Any())
+        {
+            var ultimo = tablaAmortizacion.Last();
+            quincenaFinalTexto = PrestamoService.FormatoQuincena(ultimo.Quincena, ultimo.Anio);
+        }
+    }
+
+    // ── GUARDAR ──────────────────────────────────────────────────────────────
+
+    private async Task Guardar()
+    {
+        if (guardando) return;   // candado contra doble clic / doble envío del evento
+
+        error = "";
+
+        if (socioSeleccionado is null)
+        { error = "Selecciona un trabajador."; return; }
+
+        if (prestamo.ImporteOtorgado <= 0)
+        { error = "El importe otorgado debe ser mayor a cero."; return; }
+
+        if (prestamo.NumeroDescuentos <= 0)
+        { error = "Selecciona el número de quincenas."; return; }
+
+        // Si hay préstamos activos, exigir elegir cómo proceder
+        if (prestamosActivos.Any() && modo == PrestamoService.ModoPrestamo.Nuevo)
+        {
+            error = "Este trabajador ya tiene un préstamo activo. Elige reestructurar o segundo préstamo.";
+            return;
+        }
+
+        guardando = true;
+        StateHasChanged();
+
+        try
+        {
+            // Asegurar que SocioId esté asignado y NO la propiedad de navegación
+            prestamo.SocioId = socioSeleccionado.Id;
+            prestamo.Socio   = null!;   // evita que EF intente re-insertar al socio
+
+            await PrestamoService.CrearAsync(prestamo, modo, prestamoAnteriorId);
+            Nav.NavigateTo($"/socios/{socioSeleccionado.Id}");
+        }
+        catch (Exception ex)
+        {
+            error     = $"Error al guardar: {ex.Message}";
+            guardando = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Regresar()
+    {
+        if (paso == 2 && !SocioId.HasValue)
+        {
+            VolverBusqueda();
+            return;
+        }
+        if (socioSeleccionado is not null)
+            Nav.NavigateTo($"/socios/{socioSeleccionado.Id}");
+        else
+            Nav.NavigateTo("/prestamos");
+    }
+}

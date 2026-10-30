@@ -1,0 +1,386 @@
+@page "/ahorro-importar"
+@inject AhorroImportService AhorroSvc
+@inject NavigationManager Nav
+@using Microsoft.AspNetCore.Components.Forms
+
+<PageTitle>Importar Ahorro — Caja de Ahorro</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Importar descuentos de ahorro</h1>
+        <p class="text-muted">Ciclo Navideño o Escolar — el sistema detecta automáticamente</p>
+    </div>
+    <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/ahorro")'>
+        <i class="ti ti-arrow-left"></i> Control de ahorro
+    </button>
+</div>
+
+<!-- Aviso informativo -->
+<div class="aviso-info" style="max-width:760px; margin-bottom:1.5rem;">
+    <i class="ti ti-info-circle"></i>
+    <div>
+        <strong>¿Cómo funciona?</strong>
+        Sube el archivo Excel de descuentos de ahorro — soporta el formato de
+        <em>Servicios de Salud de Zacatecas</em> (SSZ) y el de <em>IMSS Bienestar</em>.
+        El sistema detecta el formato y el ciclo (<strong>NAVIDEÑO</strong> o <strong>ESCOLAR</strong>) del título,
+        y la quincena del nombre de la pestaña (o del título, si la pestaña no la trae).
+        Si lo necesitas, puedes ajustarlos antes de importar.
+        Puedes cargar un archivo por ciclo por quincena; si lo reimportas, los registros se actualizan.
+    </div>
+</div>
+
+<!-- Formulario de carga -->
+<div class="form-card" style="max-width:720px; margin-bottom:1.5rem;">
+    <div class="form-group">
+        <label>Archivo Excel (.xlsx)</label>
+        <InputFile OnChange="OnArchivoSeleccionado" accept=".xlsx" />
+        @if (!string.IsNullOrEmpty(nombreArchivo))
+        {
+            <span class="text-muted" style="font-size:12px; margin-top:4px; display:block;">
+                <i class="ti ti-file-spreadsheet"></i> @nombreArchivo
+            </span>
+        }
+    </div>
+
+    @if (analisis is not null)
+    {
+        <!-- Ciclo detectado / selector -->
+        <div style="background:#f8f9fa; border:1px solid #e5e7eb; border-radius:8px;
+                    padding:12px 16px; margin-top:.75rem;">
+            @if (analisis.CicloDetectado.HasValue)
+            {
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:.75rem;
+                            font-size:13px; color:#059669;">
+                    <i class="ti ti-circle-check" style="font-size:1.1rem;"></i>
+                    Ciclo detectado: <strong>@analisis.CicloDetectado.Value</strong>
+                    — puedes cambiarlo si es incorrecto.
+                </div>
+            }
+            else
+            {
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:.75rem;
+                            font-size:13px; color:#d97706;">
+                    <i class="ti ti-alert-triangle"></i>
+                    No se detectó el ciclo — elige manualmente.
+                </div>
+            }
+
+            <div class="form-row-3">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Ciclo</label>
+                    <select class="form-control" @bind="cicloSeleccionado" @bind:after="RevisarCargaPrevia">
+                        <option value="@CicloAhorro.Navideño">🌙 Navideño</option>
+                        <option value="@CicloAhorro.Escolar">📚 Escolar</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Quincena</label>
+                    <select class="form-control" @bind="quincenaSeleccionada" @bind:after="RevisarCargaPrevia">
+                        @for (int i = 1; i <= 24; i++)
+                        {
+                            <option value="@i">QNA @i.ToString("D2")</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Año</label>
+                    <select class="form-control" @bind="anioSeleccionado" @bind:after="RevisarCargaPrevia">
+                        @for (int y = 2024; y <= DateTime.Today.Year + 1; y++)
+                        {
+                            <option value="@y">@y</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(analisis.TituloOriginal))
+            {
+                <p class="campo-hint" style="margin-top:.5rem;">
+                    <i class="ti ti-file-text"></i> Título: <em>@analisis.TituloOriginal</em>
+                    @if (!string.IsNullOrEmpty(analisis.FormatoDetectado))
+                    {
+                        <span> · Formato: <strong>@analisis.FormatoDetectado</strong></span>
+                    }
+                </p>
+            }
+        </div>
+
+        @if (!analisis.FormatoValido)
+        {
+            <div class="alert-error" style="margin-top:.75rem;">
+                <i class="ti ti-alert-triangle"></i> @analisis.ErrorFormato
+            </div>
+        }
+
+        <!-- Log de análisis -->
+        @if (analisis.Log.Any())
+        {
+            <div style="background:#f8f9fa; border:1px solid #e5e7eb; border-radius:6px;
+                        padding:8px 12px; margin-top:.75rem; font-size:11px; font-family:monospace;
+                        max-height:90px; overflow-y:auto;">
+                @foreach (var l in analisis.Log)
+                {
+                    <div style="color:@ColorLog(l)">@l</div>
+                }
+            </div>
+        }
+
+        @if (cargaPrevia is not null)
+        {
+            <div style="margin-top:.75rem;border:1px solid #fde68a;background:#fffbeb;
+                        color:#92400e;border-radius:8px;padding:.75rem 1rem;font-size:13px;">
+                <strong><i class="ti ti-alert-triangle"></i>
+                    Esta quincena/ciclo ya se importó antes:</strong>
+                <div style="margin:.35rem 0;">
+                    @cargaPrevia.NombreArchivo — cargado el @cargaPrevia.FechaCarga.ToString("dd/MM/yyyy HH:mm")
+                    (@cargaPrevia.TotalRegistros registros, @cargaPrevia.ImporteTotal.ToString("C0"))
+                </div>
+                <label style="display:flex;align-items:center;gap:.4rem;margin-top:.35rem;cursor:pointer;">
+                    <input type="checkbox" @bind="confirmarReimportacion" />
+                    Entiendo — quiero reimportarla y ACTUALIZAR los registros existentes
+                    (no se duplica el ahorro, se reemplaza).
+                </label>
+            </div>
+        }
+
+        <div class="form-actions" style="margin-top:1.25rem;">
+            <button class="btn-primary"
+                    @onclick="Importar"
+                    disabled="@(!analisis.FormatoValido || cargando || (cargaPrevia is not null && !confirmarReimportacion))">
+                @if (cargando)
+                {
+                    <span><i class="ti ti-loader-2"></i> Importando...</span>
+                }
+                else
+                {
+                    <span>
+                        <i class="ti ti-database-import"></i>
+                        Importar @cicloSeleccionado QNA @quincenaSeleccionada.ToString("D2")/@anioSeleccionado
+                    </span>
+                }
+            </button>
+            <button class="btn-secondary" @onclick="Limpiar" disabled="@cargando">
+                <i class="ti ti-x"></i> Cancelar
+            </button>
+        </div>
+    }
+</div>
+
+<!-- Resultado -->
+@if (resultado is not null)
+{
+    <div class="form-card" style="max-width:760px; margin-bottom:1.5rem;">
+
+        @if (resultado.Exitoso)
+        {
+            <div style="display:flex; align-items:center; gap:.6rem; margin-bottom:1.25rem;
+                        background:#f0fdf4; border:1px solid #86efac; border-radius:8px;
+                        padding:.7rem 1rem; font-size:13px;">
+                <i class="ti ti-circle-check" style="color:#16a34a; font-size:1.3rem;"></i>
+                <div>
+                    @if (resultado.EsReimportacion)
+                    {
+                        <strong>Reimportación:</strong>
+                    }
+                    else
+                    {
+                        <strong>Importación exitosa —</strong>
+                    }
+                    <span>
+                        Ciclo <strong>@resultado.Ciclo</strong> ·
+                        QNA <strong>@resultado.Quincena.ToString("D2")/@resultado.Anio</strong>
+                    </span>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div style="display:flex; align-items:center; gap:.6rem; margin-bottom:1.25rem;
+                        background:#fef2f2; border:1px solid #fca5a5; border-radius:8px;
+                        padding:.7rem 1rem; font-size:13px;">
+                <i class="ti ti-alert-triangle" style="color:#dc2626; font-size:1.3rem;"></i>
+                <div><strong>Error al importar:</strong> @resultado.Error</div>
+            </div>
+        }
+
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:.75rem; margin-bottom:1.25rem;">
+            <div class="resultado-stat">
+                <span class="resultado-numero">@resultado.TotalLineasArchivo</span>
+                <span class="resultado-label">Líneas leídas</span>
+            </div>
+            <div class="resultado-stat">
+                <span class="resultado-numero" style="color:#7c3aed;">@resultado.AhorrosAplicados</span>
+                <span class="resultado-label">Socios con ahorro</span>
+            </div>
+            <div class="resultado-stat">
+                <span class="resultado-numero" style="color:#d97706;">@resultado.SociosNoEncontrados</span>
+                <span class="resultado-label">RFC sin match</span>
+            </div>
+            <div class="resultado-stat">
+                <span class="resultado-numero" style="color:#059669;">
+                    @resultado.ImporteTotal.ToString("C0")
+                </span>
+                <span class="resultado-label">Importe total</span>
+            </div>
+        </div>
+
+        @if (resultado.Advertencias.Any())
+        {
+            <details style="margin-bottom:.75rem;">
+                <summary style="cursor:pointer; font-size:12px; color:#d97706; user-select:none;">
+                    <i class="ti ti-alert-triangle"></i> @resultado.Advertencias.Count RFC(s) no registrados
+                </summary>
+                <ul style="margin:.5rem 0 0 1rem; font-size:12px; color:#92400e;">
+                    @foreach (var w in resultado.Advertencias.Take(40))
+                    {
+                        <li>@w</li>
+                    }
+                    @if (resultado.Advertencias.Count > 40)
+                    {
+                        <li class="text-muted">...y @(resultado.Advertencias.Count - 40) más</li>
+                    }
+                </ul>
+            </details>
+        }
+
+        <details>
+            <summary style="cursor:pointer; font-size:12px; color:#6b7280; user-select:none;">
+                <i class="ti ti-terminal"></i> Log (@resultado.Log.Count entradas)
+            </summary>
+            <div style="background:#f8f9fa; border:1px solid #e5e7eb; border-radius:6px;
+                        padding:8px; margin-top:.5rem; font-size:11px; font-family:monospace;
+                        max-height:200px; overflow-y:auto;">
+                @foreach (var l in resultado.Log)
+                {
+                    <div style="color:@ColorLog(l)">@l</div>
+                }
+            </div>
+        </details>
+
+        <div style="margin-top:1.25rem; display:flex; gap:.75rem;">
+            <button class="btn-primary" @onclick="Limpiar">
+                <i class="ti ti-upload"></i> Cargar otro archivo
+            </button>
+            <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/ahorro")'>
+                <i class="ti ti-list"></i> Ver control de ahorro
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    private IBrowserFile?  archivoRef;
+    private string         nombreArchivo        = "";
+    private bool           cargando             = false;
+    private CicloAhorro    cicloSeleccionado    = CicloAhorro.Navideño;
+    private int            quincenaSeleccionada  = 1;
+    private int            anioSeleccionado      = DateTime.Today.Year;
+
+    private AhorroImportService.AnalisisArchivo? analisis;
+    private AhorroImportService.ResultadoImportacion? resultado;
+    private AhorroEncabezado? cargaPrevia;
+    private bool confirmarReimportacion = false;
+
+    /// <summary>Cuando el usuario ajusta manualmente ciclo/quincena/año hay
+    /// que volver a checar si esa combinación ya se cargó antes.</summary>
+    private async Task RevisarCargaPrevia()
+    {
+        if (analisis is null) return;   // sin archivo elegido no hay nada que checar
+        cargaPrevia = await AhorroSvc.ObtenerCargaPreviaAsync(
+            quincenaSeleccionada, anioSeleccionado, cicloSeleccionado);
+        confirmarReimportacion = false;
+    }
+
+    private async Task OnArchivoSeleccionado(InputFileChangeEventArgs e)
+    {
+        archivoRef    = e.File;
+        nombreArchivo = e.File.Name;
+        resultado     = null;
+        analisis      = null;
+        cargaPrevia   = null;
+        confirmarReimportacion = false;
+
+        try
+        {
+            using var stream = archivoRef.OpenReadStream(maxAllowedSize: 30 * 1024 * 1024);
+            using var ms     = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+
+            analisis = AhorroImportService.Analizar(ms);
+
+            // Aplicar valores detectados
+            if (analisis.CicloDetectado.HasValue)
+                cicloSeleccionado = analisis.CicloDetectado.Value;
+            if (analisis.Quincena > 0)
+            {
+                quincenaSeleccionada = analisis.Quincena;
+                anioSeleccionado     = analisis.Anio;
+            }
+
+            // ¿Ya se cargó esta quincena/ciclo? Avisar y pedir confirmación
+            // explícita antes de dejar reimportar.
+            cargaPrevia = await AhorroSvc.ObtenerCargaPreviaAsync(
+                quincenaSeleccionada, anioSeleccionado, cicloSeleccionado);
+            confirmarReimportacion = false;
+        }
+        catch (Exception ex)
+        {
+            analisis = new AhorroImportService.AnalisisArchivo
+            {
+                FormatoValido = false,
+                ErrorFormato  = ex.Message,
+            };
+        }
+    }
+
+    private async Task Importar()
+    {
+        if (archivoRef is null || analisis is null) return;
+
+        cargando  = true;
+        resultado = null;
+        StateHasChanged();
+
+        try
+        {
+            using var stream = archivoRef.OpenReadStream(maxAllowedSize: 30 * 1024 * 1024);
+            using var ms     = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+
+            resultado = await AhorroSvc.ImportarAsync(
+                ms, nombreArchivo, cicloSeleccionado,
+                quincenaSeleccionada, anioSeleccionado);
+        }
+        catch (Exception ex)
+        {
+            resultado = new AhorroImportService.ResultadoImportacion
+            {
+                Exitoso = false,
+                Error   = ex.Message,
+            };
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private void Limpiar()
+    {
+        archivoRef    = null;
+        nombreArchivo = "";
+        analisis      = null;
+        resultado     = null;
+    }
+
+    private static string ColorLog(string l) => l switch
+    {
+        var s when s.StartsWith("[ERROR") => "#dc2626",
+        var s when s.StartsWith("[WARN]") => "#d97706",
+        var s when s.StartsWith("[OK]")   => "#16a34a",
+        var s when s.StartsWith("[NUEVO") => "#0284c7",
+        _ => "#374151"
+    };
+}

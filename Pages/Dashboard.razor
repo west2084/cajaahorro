@@ -1,0 +1,491 @@
+@page "/"
+@using Microsoft.EntityFrameworkCore
+@inject CajaAhorro.Data.AppDbContext Db
+@inject NavigationManager Nav
+
+<PageTitle>Dashboard — Caja de Ahorro</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1>Dashboard</h1>
+        <p class="text-muted">Resumen general · Quincena actual</p>
+    </div>
+    <div style="display:flex;gap:.5rem;">
+        <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/prestamos/nuevo")'>
+            <i class="ti ti-plus"></i> Nuevo préstamo
+        </button>
+        <button class="btn-secondary" @onclick='() => Nav.NavigateTo("/socios/nuevo")'>
+            <i class="ti ti-user-plus"></i> Nuevo socio
+        </button>
+    </div>
+</div>
+
+@if (cargando)
+{
+    <p class="text-muted" style="margin-top:2rem;text-align:center;">
+        <i class="ti ti-loader-2"></i> Cargando datos...
+    </p>
+}
+else
+{
+    <!-- ── FILA 1: KPIs principales ─────────────────────────────────────── -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.25rem;">
+
+        <div class="stat-card">
+            <span class="stat-label"><i class="ti ti-users"></i> Total socios activos</span>
+            <span class="stat-valor destacado">@totalSocios</span>
+            <span class="text-muted">registrados en el sistema</span>
+        </div>
+
+        <div class="stat-card">
+            <span class="stat-label"><i class="ti ti-credit-card"></i> Créditos activos</span>
+            <span class="stat-valor" style="color:#059669;">@creditosActivos</span>
+            <span class="text-muted">en descuento actualmente</span>
+        </div>
+
+        <div class="stat-card">
+            <span class="stat-label"><i class="ti ti-circle-check"></i> Créditos saldados</span>
+            <span class="stat-valor" style="color:#1d4ed8;">@creditosSaldados</span>
+            <span class="text-muted">liquidados en total</span>
+        </div>
+
+        <div class="stat-card">
+            <span class="stat-label"><i class="ti ti-ban"></i> Cancelados / Reestructurados</span>
+            <span class="stat-valor" style="color:#9ca3af;">@creditosOtros</span>
+            <span class="text-muted">cancelados o reestructurados</span>
+        </div>
+
+    </div>
+
+    <!-- ── FILA 2: Importes clave ─────────────────────────────────────── -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;">
+
+        <div class="stat-card" style="border-left:3px solid #059669;">
+            <span class="stat-label">Cartera vigente (saldo pendiente)</span>
+            <span class="stat-valor" style="font-size:22px;color:#059669;">@saldoCartera.ToString("C0")</span>
+            <span class="text-muted">suma de saldos finales activos</span>
+        </div>
+
+        <div class="stat-card" style="border-left:3px solid #4f8ef7;">
+            <span class="stat-label">Descuento quincenal esperado</span>
+            <span class="stat-valor" style="font-size:22px;color:#4f8ef7;">@pagoQuincenalTotal.ToString("C0")</span>
+            <span class="text-muted">suma de pagos quincenales activos</span>
+        </div>
+
+        <div class="stat-card" style="border-left:3px solid #7c3aed;">
+            <span class="stat-label">Total otorgado (histórico)</span>
+            <span class="stat-valor" style="font-size:22px;color:#7c3aed;">@totalOtorgado.ToString("C0")</span>
+            <span class="text-muted">todos los créditos registrados</span>
+        </div>
+
+    </div>
+
+    <!-- ── FILA 2.5: Ahorro y pendientes ────────────────────────────────── -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;">
+
+        <div class="stat-card">
+            <span class="stat-label"><i class="ti ti-piggy-bank"></i> Ahorradores @anioActual</span>
+            <span class="stat-valor" style="color:#059669;">@ahorradoresActivos</span>
+            <span class="text-muted">socios con aportaciones este año</span>
+        </div>
+
+        <div class="stat-card" style="border-left:3px solid #059669;">
+            <span class="stat-label">Ahorro Navideño @anioActual</span>
+            <span class="stat-valor" style="font-size:22px;color:#059669;">@ahorroNavideno.ToString("C0")</span>
+            <span class="text-muted">acumulado del ciclo (ene–dic @anioActual)</span>
+        </div>
+
+        <div class="stat-card" style="border-left:3px solid #4f8ef7;">
+            <span class="stat-label">Ahorro Escolar @anioActual/@(anioActual + 1)</span>
+            <span class="stat-valor" style="font-size:22px;color:#4f8ef7;">@ahorroEscolar.ToString("C0")</span>
+            <span class="text-muted">acumulado del ciclo (jul @anioActual – jun @(anioActual + 1))</span>
+        </div>
+
+        @if (sociosProvisionales > 0)
+        {
+            <button class="stat-card" style="border-left:3px solid #d97706;cursor:pointer;text-align:left;background:#fffbeb;"
+                    @onclick='() => Nav.NavigateTo("/reportes")'>
+                <span class="stat-label" style="color:#92400e;">
+                    <i class="ti ti-alert-triangle"></i> Socios provisionales
+                </span>
+                <span class="stat-valor" style="color:#d97706;">@sociosProvisionales</span>
+                <span class="text-muted">expedientes por completar · ver reporte</span>
+            </button>
+        }
+        else
+        {
+            <div class="stat-card" style="border-left:3px solid #059669;">
+                <span class="stat-label"><i class="ti ti-circle-check"></i> Expedientes</span>
+                <span class="stat-valor" style="color:#059669;">OK</span>
+                <span class="text-muted">sin socios provisionales pendientes</span>
+            </div>
+        }
+
+    </div>
+
+    <!-- ── FILA 3: Tabla activos + Tabla recientes ─────────────────────── -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.5rem;">
+
+        <!-- Distribución por tipo de nombramiento -->
+        <div class="form-card" style="padding:0;overflow:hidden;">
+            <div style="padding:.85rem 1.1rem;border-bottom:1px solid #f3f4f6;
+                        display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-weight:600;font-size:13px;">Créditos activos por base</span>
+                <button class="btn-icon" @onclick='() => Nav.NavigateTo("/prestamos")'>
+                    <i class="ti ti-arrow-right"></i>
+                </button>
+            </div>
+            <table class="tabla tabla-sm">
+                <thead>
+                    <tr>
+                        <th>Base / Nombramiento</th>
+                        <th class="text-right">Créditos</th>
+                        <th class="text-right">Saldo vigente</th>
+                        <th class="text-right">Pago QNA</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var g in porNombramiento)
+                    {
+                        <tr>
+                            <td>
+                                <span style="font-weight:500;">@g.Nombramiento</span>
+                            </td>
+                            <td class="text-right">@g.Cantidad</td>
+                            <td class="text-right" style="color:#059669;font-weight:500;">
+                                @g.Saldo.ToString("C0")
+                            </td>
+                            <td class="text-right" style="color:#4f8ef7;">
+                                @g.PagoQna.ToString("C0")
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Últimos créditos registrados -->
+        <div class="form-card" style="padding:0;overflow:hidden;">
+            <div style="padding:.85rem 1.1rem;border-bottom:1px solid #f3f4f6;
+                        display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-weight:600;font-size:13px;">Últimos créditos registrados</span>
+                <button class="btn-icon" @onclick='() => Nav.NavigateTo("/prestamos")'>
+                    <i class="ti ti-arrow-right"></i>
+                </button>
+            </div>
+            <table class="tabla tabla-sm">
+                <thead>
+                    <tr>
+                        <th>Socio</th>
+                        <th class="text-right">Importe</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in ultimosPrestamos)
+                    {
+                        <tr style="cursor:pointer;" @onclick='() => Nav.NavigateTo($"/prestamos/{p.Id}")'>
+                            <td>
+                                <span class="nombre-socio">@Truncar(p.Socio?.Nombre, 28)</span>
+                                <span class="rfc-socio">QNA @p.QuincenaInicial/@p.AnioInicial</span>
+                            </td>
+                            <td class="text-right" style="font-weight:600;">
+                                @p.ImporteOtorgado.ToString("C0")
+                            </td>
+                            <td>
+                                @switch (p.Status)
+                                {
+                                    case StatusPrestamo.Activo:
+                                        <span class="badge badge-activo">Activo</span>
+                                        break;
+                                    case StatusPrestamo.Liquidado:
+                                        <span class="badge badge-liquidado">Saldado</span>
+                                        break;
+                                    case StatusPrestamo.Cancelado:
+                                        <span class="badge badge-cancelado">Cancelado</span>
+                                        break;
+                                    default:
+                                        <span class="badge badge-reestructurado">Reestruc.</span>
+                                        break;
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <!-- ── FILA 4: Detalle créditos saldados vs activos ─────────────────── -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.5rem;">
+
+        <!-- Créditos activos — top por saldo mayor -->
+        <div class="form-card" style="padding:0;overflow:hidden;">
+            <div style="padding:.85rem 1.1rem;border-bottom:1px solid #f3f4f6;">
+                <span style="font-weight:600;font-size:13px;color:#059669;">
+                    <i class="ti ti-trending-up"></i> Mayores saldos vigentes
+                </span>
+            </div>
+            <table class="tabla tabla-sm">
+                <thead>
+                    <tr>
+                        <th>Socio</th>
+                        <th class="text-right">Saldo actual</th>
+                        <th class="text-right">QNA fin</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in mayoresSaldos)
+                    {
+                        <tr style="cursor:pointer;" @onclick='() => Nav.NavigateTo($"/prestamos/{p.Id}")'>
+                            <td>
+                                <span class="nombre-socio">@Truncar(p.Socio?.Nombre, 26)</span>
+                            </td>
+                            <td class="text-right" style="font-weight:600;color:#059669;">
+                                @p.SaldoActual.ToString("C0")
+                            </td>
+                            <td class="text-right text-muted">
+                                @p.QuincenaFinal/@p.AnioFinal
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Créditos saldados recientes -->
+        <div class="form-card" style="padding:0;overflow:hidden;">
+            <div style="padding:.85rem 1.1rem;border-bottom:1px solid #f3f4f6;">
+                <span style="font-weight:600;font-size:13px;color:#1d4ed8;">
+                    <i class="ti ti-circle-check"></i> Últimos créditos saldados
+                </span>
+            </div>
+            @if (ultimosSaldados.Any())
+            {
+                <table class="tabla tabla-sm">
+                    <thead>
+                        <tr>
+                            <th>Socio</th>
+                            <th class="text-right">Importe</th>
+                            <th class="text-right">Total pagado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in ultimosSaldados)
+                        {
+                            <tr style="cursor:pointer;" @onclick='() => Nav.NavigateTo($"/prestamos/{p.Id}")'>
+                                <td>
+                                    <span class="nombre-socio">@Truncar(p.Socio?.Nombre, 26)</span>
+                                </td>
+                                <td class="text-right text-muted">
+                                    @p.ImporteOtorgado.ToString("C0")
+                                </td>
+                                <td class="text-right" style="font-weight:600;color:#1d4ed8;">
+                                    @p.TotalAPagar.ToString("C0")
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty-state" style="padding:2rem;">
+                    <i class="ti ti-circle-check" style="font-size:2rem;color:#d1d5db;"></i>
+                    <p class="text-muted" style="margin-top:.5rem;">Sin créditos saldados aún</p>
+                </div>
+            }
+        </div>
+
+    </div>
+
+    <!-- ── FILA 5: Accesos rápidos ─────────────────────────────────────── -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;">
+        <button class="stat-card" style="border:1px dashed #d1d5db;cursor:pointer;background:#fafafa;text-align:left;"
+                @onclick='() => Nav.NavigateTo("/prestamos")'>
+            <i class="ti ti-credit-card" style="font-size:1.4rem;color:#4f8ef7;margin-bottom:.25rem;"></i>
+            <span style="font-weight:600;font-size:13px;">Ver todos los préstamos</span>
+            <span class="text-muted">Listado completo y filtros</span>
+        </button>
+        <button class="stat-card" style="border:1px dashed #d1d5db;cursor:pointer;background:#fafafa;text-align:left;"
+                @onclick='() => Nav.NavigateTo("/socios")'>
+            <i class="ti ti-users" style="font-size:1.4rem;color:#059669;margin-bottom:.25rem;"></i>
+            <span style="font-weight:600;font-size:13px;">Catálogo de socios</span>
+            <span class="text-muted">Buscar y editar socios</span>
+        </button>
+        <button class="stat-card" style="border:1px dashed #d1d5db;cursor:pointer;background:#fafafa;text-align:left;"
+                @onclick='() => Nav.NavigateTo("/retenciones")'>
+            <i class="ti ti-file-import" style="font-size:1.4rem;color:#7c3aed;margin-bottom:.25rem;"></i>
+            <span style="font-weight:600;font-size:13px;">Importar retenciones</span>
+            <span class="text-muted">OPD y Secretaría de Salud</span>
+        </button>
+        <button class="stat-card" style="border:1px dashed #d1d5db;cursor:pointer;background:#fafafa;text-align:left;"
+                @onclick='() => Nav.NavigateTo("/reportes")'>
+            <i class="ti ti-file-spreadsheet" style="font-size:1.4rem;color:#d97706;margin-bottom:.25rem;"></i>
+            <span style="font-weight:600;font-size:13px;">Reportes Excel</span>
+            <span class="text-muted">Créditos, ahorradores y faltantes</span>
+        </button>
+    </div>
+}
+
+@code {
+    // ── Estado ────────────────────────────────────────────────────────────
+    private bool cargando = true;
+
+    private int totalSocios;
+    private int creditosActivos;
+    private int creditosSaldados;
+    private int creditosOtros;
+
+    private decimal saldoCartera;
+    private decimal pagoQuincenalTotal;
+    private decimal totalOtorgado;
+
+    private int     anioActual = DateTime.Today.Year;
+    private int     ahorradoresActivos;
+    private decimal ahorroNavideno;
+    private decimal ahorroEscolar;
+    private int     sociosProvisionales;
+
+    private List<GrupoPorNombramiento> porNombramiento = new();
+    private List<Prestamo>             ultimosPrestamos = new();
+    private List<PrestamoConSaldo>     mayoresSaldos    = new();
+    private List<Prestamo>             ultimosSaldados  = new();
+
+    // ── Carga de datos ────────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        // Socios
+        totalSocios = await Db.Socios.CountAsync(s => s.Activo);
+
+        // Expedientes provisionales pendientes de completar
+        sociosProvisionales = await Db.Socios.CountAsync(s =>
+            s.Activo && s.EstadoCaptura == EstadoCaptura.Provisional);
+
+        // Ahorro del año en curso
+        ahorradoresActivos = await Db.Ahorros
+            .Where(a => a.Anio == anioActual)
+            .Select(a => a.SocioId)
+            .Distinct()
+            .CountAsync();
+
+        ahorroNavideno = await Db.Ahorros
+            .Where(a => a.Anio == anioActual && a.Ciclo == CicloAhorro.Navideño)
+            .SumAsync(a => (decimal?)a.MontoRetenido) ?? 0m;
+
+        // Escolar = julio del año actual a junio del año siguiente
+        // (QNA 13-24/anioActual + QNA 1-12/anioActual+1). Filtrar solo por
+        // Anio == anioActual cortaría el ciclo a la mitad.
+        ahorroEscolar = await Db.Ahorros
+            .Where(a => a.Ciclo == CicloAhorro.Escolar &&
+                ((a.Anio == anioActual && a.Quincena >= 13) ||
+                 (a.Anio == anioActual + 1 && a.Quincena <= 12)))
+            .SumAsync(a => (decimal?)a.MontoRetenido) ?? 0m;
+
+        // Conteos por status
+        creditosActivos  = await Db.Prestamos.CountAsync(p => p.Status == StatusPrestamo.Activo);
+        creditosSaldados = await Db.Prestamos.CountAsync(p => p.Status == StatusPrestamo.Liquidado);
+        creditosOtros    = await Db.Prestamos.CountAsync(p =>
+                               p.Status == StatusPrestamo.Cancelado ||
+                               p.Status == StatusPrestamo.Reestructurado);
+
+        // Importes de cartera activa
+        pagoQuincenalTotal = await Db.Prestamos
+            .Where(p => p.Status == StatusPrestamo.Activo)
+            .SumAsync(p => p.PagoQuincenal);
+
+        totalOtorgado = await Db.Prestamos
+            .SumAsync(p => p.ImporteOtorgado);
+
+        // Saldo vigente: último saldo final de amortización para préstamos activos
+        saldoCartera = await Db.AmortizacionDetalles
+            .Where(a => a.Prestamo.Status == StatusPrestamo.Activo
+                     && a.StatusPago == StatusPago.Pendiente)
+            .GroupBy(a => a.PrestamoId)
+            .Select(g => g.Min(a => a.SaldoInicial))
+            .SumAsync();
+
+        // Si no hay amortización aún, usar suma de ImporteOtorgado como fallback
+        if (saldoCartera == 0)
+        {
+            saldoCartera = await Db.Prestamos
+                .Where(p => p.Status == StatusPrestamo.Activo)
+                .SumAsync(p => p.ImporteOtorgado);
+        }
+
+        // Por nombramiento (activos)
+        porNombramiento = await Db.Prestamos
+            .Where(p => p.Status == StatusPrestamo.Activo)
+            .Include(p => p.Socio)
+            .GroupBy(p => p.Socio.TipoNombramiento == "" ? "Sin clasificar" : p.Socio.TipoNombramiento)
+            .Select(g => new GrupoPorNombramiento
+            {
+                Nombramiento = g.Key,
+                Cantidad     = g.Count(),
+                Saldo        = g.Sum(p => p.ImporteOtorgado),
+                PagoQna      = g.Sum(p => p.PagoQuincenal),
+            })
+            .OrderByDescending(g => g.Cantidad)
+            .ToListAsync();
+
+        // Últimos 8 créditos registrados
+        ultimosPrestamos = await Db.Prestamos
+            .Include(p => p.Socio)
+            .OrderByDescending(p => p.FechaRegistro)
+            .Take(8)
+            .ToListAsync();
+
+        // Mayores saldos activos (aproximado con ImporteOtorgado ya que puede no haber amort)
+        var activosRaw = await Db.Prestamos
+            .Include(p => p.Socio)
+            .Where(p => p.Status == StatusPrestamo.Activo)
+            .OrderByDescending(p => p.ImporteOtorgado)
+            .Take(8)
+            .ToListAsync();
+
+        mayoresSaldos = activosRaw.Select(p => new PrestamoConSaldo
+        {
+            Id              = p.Id,
+            Socio           = p.Socio,
+            SaldoActual     = p.ImporteOtorgado,
+            QuincenaFinal   = p.QuincenaFinal,
+            AnioFinal       = p.AnioFinal,
+        }).ToList();
+
+        // Últimos saldados
+        ultimosSaldados = await Db.Prestamos
+            .Include(p => p.Socio)
+            .Where(p => p.Status == StatusPrestamo.Liquidado)
+            .OrderByDescending(p => p.FechaRegistro)
+            .Take(8)
+            .ToListAsync();
+
+        cargando = false;
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    private static string Truncar(string? texto, int max) =>
+        string.IsNullOrEmpty(texto) ? "-" :
+        texto.Length <= max ? texto : texto[..max] + "…";
+
+    // ── DTOs internos ─────────────────────────────────────────────────────
+
+    private class GrupoPorNombramiento
+    {
+        public string  Nombramiento { get; set; } = "";
+        public int     Cantidad     { get; set; }
+        public decimal Saldo        { get; set; }
+        public decimal PagoQna      { get; set; }
+    }
+
+    private class PrestamoConSaldo
+    {
+        public int    Id            { get; set; }
+        public Socio? Socio         { get; set; }
+        public decimal SaldoActual  { get; set; }
+        public int    QuincenaFinal { get; set; }
+        public int    AnioFinal     { get; set; }
+    }
+}
