@@ -43,8 +43,8 @@ jobs:
           [xml]$xml = Get-Content -Path $webConfig -Raw
           $asp = $xml.SelectSingleNode('/configuration/system.webServer/aspNetCore | /configuration/location/system.webServer/aspNetCore')
           if ($null -eq $asp) { throw 'web.config is missing aspNetCore configuration at supported IIS paths.' }
-          if ($asp.processPath -notin @('dotnet', '.\\CajaAhorro.exe')) { throw "Unexpected processPath: $($asp.processPath)" }
-          if ($asp.processPath -eq 'dotnet' -and $asp.arguments -notmatch 'CajaAhorro\\.dll') { throw 'web.config does not reference CajaAhorro.dll.' }
+          if ($asp.processPath -notin @('dotnet', '.\CajaAhorro.exe')) { throw "Unexpected processPath: $($asp.processPath)" }
+          if ($asp.processPath -eq 'dotnet' -and $asp.arguments -notmatch 'CajaAhorro\.dll') { throw 'web.config does not reference CajaAhorro.dll.' }
           foreach ($required in @('CajaAhorro.dll', 'CajaAhorro.runtimeconfig.json', 'CajaAhorro.deps.json')) {
             if (-not (Test-Path (Join-Path $out $required))) { throw "Missing publish file: $required" }
           }
