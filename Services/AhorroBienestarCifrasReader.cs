@@ -107,7 +107,9 @@ public static class AhorroBienestarCifrasReader
                         validos[indice]++;
                         sumas[indice] += importe.Value;
                     }
-                    else if (importe != 0 || !string.IsNullOrWhiteSpace(rfc))
+                    else if (!hoja.Cell(fila, 4 + indice).IsEmpty() &&
+                             (!importe.HasValue || importe <= 0 ||
+                              (rfc.Length != 12 && rfc.Length != 13)))
                         invalidos[indice]++;
                 }
             }
