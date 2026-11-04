@@ -92,8 +92,8 @@ public class AhorroImportService
                 res.FormatoValido = res.ResumenCifras.All(x => x.TotalesCoinciden);
                 res.CicloDetectado = null; // Dos ciclos: no seleccionar uno arbitrariamente.
                 res.Log.Add("[INFO] Archivo Bienestar CAP: 2 ciclos y 2 quincenas por archivo.");
-                foreach (var q in res.ResumenCifras)
-                    res.Log.Add($"[{(q.TotalesCoinciden ? "OK" : "ERROR")}] {q.Hoja} {q.Ciclo} QNA {q.Quincena:D2}: {q.RegistrosValidos} registros, {q.Importe:C}, total hoja {q.TotalDeclarado:C}");
+                foreach (var detalleCifras in res.ResumenCifras)
+                    res.Log.Add($"[{(detalleCifras.TotalesCoinciden ? "OK" : "ERROR")}] {detalleCifras.Hoja} {detalleCifras.Ciclo} QNA {detalleCifras.Quincena:D2}: {detalleCifras.RegistrosValidos} registros, {detalleCifras.Importe:C}, total hoja {detalleCifras.TotalDeclarado:C}");
                 if (!res.FormatoValido)
                     res.ErrorFormato = "Los totales declarados y calculados no coinciden. Revisar archivo.";
                 return res;
