@@ -111,7 +111,7 @@
                 <i class="ti ti-alert-triangle"></i>
                 <div>
                     <strong>IMSS Bienestar — asignación de conceptos por pestaña</strong>
-                    <p style="margin:.35rem 0;">Revisa cada concepto antes de aplicar las quincenas. Las hojas generales de resumen no generan descuentos.</p>
+                    <p style="margin:.35rem 0;">La vista previa suma únicamente filas con RFC válido e importe positivo de cada quincena. Los totales impresos en las hojas no se usan para validar ni calcular el resultado.</p>
                     <p style="margin:.35rem 0;"><strong>Solo vista previa:</strong> todavía no se permiten importaciones CAP hasta implementar la separación por institución y la reversión auditada.</p>
                 </div>
             </div>
@@ -141,7 +141,7 @@
                     <div class="table-container">
                         <table class="tabla">
                             <thead>
-                                <tr><th>QNA</th><th>Registros</th><th>Filas con incidencia</th><th class="text-right">Importe</th><th class="text-right">Total declarado</th><th>Conciliación</th></tr>
+                                <tr><th>QNA</th><th>Registros con RFC e importe</th><th>Filas con incidencia</th><th class="text-right">Importe válido calculado</th></tr>
                             </thead>
                             <tbody>
                             @foreach (var item in grupo)
@@ -151,8 +151,6 @@
                                     <td>@item.RegistrosValidos</td>
                                     <td>@item.FilasNoValidas</td>
                                     <td class="text-right">@item.Importe.ToString("C")</td>
-                                    <td class="text-right">@item.TotalDeclarado?.ToString("C")</td>
-                                    <td>@(item.TotalesCoinciden ? "Correcto" : "Diferencia")</td>
                                 </tr>
                             }
                             </tbody>
