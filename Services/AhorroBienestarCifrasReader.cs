@@ -1,20 +1,38 @@
 using ClosedXML.Excel;
 using CajaAhorro.Models;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace CajaAhorro.Services;
 
 /// <summary>
-/// Reconocimiento de archivos IMSS Bienestar de cifras CAP con hojas AAFA / AAFB.
-/// Solo lectura: no escribe a la base de datos. No importar otras hojas
-/// (AA39 préstamos, AAFM mutualista, cuotas generales).
+/// Inspección sin escrituras del formato CIFRAS CAP de IMSS Bienestar.
+/// B=RFC, C=Nombre trabajador, D/E=quincenas, F=total; el encabezado
+/// de RFC de AAFA puede ser "." en lugar de "RFC".
 /// </summary>
 public static class AhorroBienestarCifrasReader
 {
+    public enum Concepto { AhorroNavideno, AhorroEscolar, Prestamos, FondoMutualista, NoImportar }
+
+    private static readonly IReadOnlyDictionary<string, Concepto> ConceptosConocidos =
+        new Dictionary<string, Concepto>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["AAFA"] = Concepto.AhorroNavideno,
+            ["AAFB"] = Concepto.AhorroEscolar,
+            ["AA39"] = Concepto.Prestamos,
+            ["AAFM"] = Concepto.FondoMutualista
+        };
+
     public sealed class Resumen
     {
         public string Hoja { get; init; } = "";
-        public CicloAhorro Ciclo { get; init; }
+        public Concepto ConceptoSugerido { get; init; }
+        public CicloAhorro? Ciclo => ConceptoSugerido switch
+        {
+            Concepto.AhorroNavideno => CicloAhorro.Navideño,
+            Concepto.AhorroEscolar => CicloAhorro.Escolar,
+            _ => null
+        };
         public int Quincena { get; init; }
         public int RegistrosValidos { get; init; }
         public int FilasNoValidas { get; init; }
@@ -27,28 +45,32 @@ public static class AhorroBienestarCifrasReader
         => libro.Worksheets.TryGetWorksheet("AAFA", out _)
         && libro.Worksheets.TryGetWorksheet("AAFB", out _);
 
-    /// <summary>Devuelve cuatro resúmenes: escolar/navideño por cada quincena.
-    /// Exige encabezados y compara con el pie TOTAL de cada hoja.</summary>
+    public static bool EsConceptoConocido(string hoja, Concepto concepto)
+        => ConceptosConocidos.TryGetValue(hoja, out var esperado) &&
+           (concepto == esperado || concepto == Concepto.NoImportar);
+
+    /// <summary>
+    /// Retorna dos resúmenes por hoja identificada. Solo vista previa:
+    /// nunca genera movimientos contables ni escribe a SQL.
+    /// </summary>
     public static List<Resumen> Analizar(XLWorkbook libro)
     {
         if (!EsFormato(libro))
-            throw new InvalidDataException("El libro no contiene ambas hojas de ahorro AAFA y AAFB.");
+            throw new InvalidDataException("El libro no contiene las hojas de ahorro AAFA y AAFB.");
 
         var resultado = new List<Resumen>();
-        foreach (var (nombre, ciclo) in new[] {
-            ("AAFB", CicloAhorro.Escolar), ("AAFA", CicloAhorro.Navideño)
-        })
+        foreach (var (nombre, concepto) in ConceptosConocidos)
         {
-            var hoja = libro.Worksheet(nombre);
-            int filaCabecera = 0;
-            int qna1 = 0, qna2 = 0;
+            if (!libro.Worksheets.TryGetWorksheet(nombre, out var hoja))
+                continue;
 
-            for (int fila = 1; fila <= Math.Min(15, hoja.LastRowUsed()?.RowNumber() ?? 0); fila++)
+            int filaCabecera = 0, qna1 = 0, qna2 = 0;
+            var ultima = hoja.LastRowUsed()?.RowNumber() ?? 0;
+            for (int fila = 1; fila <= Math.Min(15, ultima); fila++)
             {
-                string nombreCol = hoja.Cell(fila, 3).GetValue<string>().Trim();
-                if (!nombreCol.Equals("Nombre trabajador", StringComparison.OrdinalIgnoreCase))
+                if (!hoja.Cell(fila, 3).GetValue<string>().Trim()
+                    .Equals("Nombre trabajador", StringComparison.OrdinalIgnoreCase))
                     continue;
-
                 var m1 = Regex.Match(hoja.Cell(fila, 4).GetValue<string>(), @"QNA\s*0?(\d{1,2})", RegexOptions.IgnoreCase);
                 var m2 = Regex.Match(hoja.Cell(fila, 5).GetValue<string>(), @"QNA\s*0?(\d{1,2})", RegexOptions.IgnoreCase);
                 if (!m1.Success || !m2.Success) continue;
@@ -58,53 +80,55 @@ public static class AhorroBienestarCifrasReader
                 break;
             }
 
-            if (filaCabecera == 0 || qna1 < 1 || qna1 > 24 || qna2 < 1 || qna2 > 24 || qna1 == qna2)
-                throw new InvalidDataException($"La hoja {nombre} no tiene encabezados válidos de QNA en columnas D y E.");
+            if (filaCabecera == 0 || qna1 is < 1 or > 24 || qna2 is < 1 or > 24 || qna1 == qna2)
+                throw new InvalidDataException($"La hoja {nombre} no tiene encabezados QNA válidos en D y E.");
 
             var sumas = new decimal[2];
             var validos = new int[2];
             var invalidos = new int[2];
             decimal?[] declarados = new decimal?[2];
-            bool footer = false;
-            int ultima = hoja.LastRowUsed()?.RowNumber() ?? filaCabecera;
+            bool tieneTotal = false;
+
             for (int fila = filaCabecera + 1; fila <= ultima; fila++)
             {
                 string rfc = hoja.Cell(fila, 2).GetValue<string>().Trim().ToUpperInvariant();
-                string nombreTrabajador = hoja.Cell(fila, 3).GetValue<string>().Trim();
-                if (nombreTrabajador.Equals("Total", StringComparison.OrdinalIgnoreCase))
+                string trabajador = hoja.Cell(fila, 3).GetValue<string>().Trim();
+                if (trabajador.Equals("Total", StringComparison.OrdinalIgnoreCase))
                 {
-                    footer = true;
                     declarados[0] = LeerImporte(hoja.Cell(fila, 4));
                     declarados[1] = LeerImporte(hoja.Cell(fila, 5));
+                    tieneTotal = true;
                     break;
                 }
-                if (string.IsNullOrWhiteSpace(rfc) && string.IsNullOrWhiteSpace(nombreTrabajador))
+
+                if (string.IsNullOrWhiteSpace(rfc) && string.IsNullOrWhiteSpace(trabajador))
                     continue;
-                for (int i = 0; i < 2; i++)
+
+                for (int indice = 0; indice < 2; indice++)
                 {
-                    decimal monto = LeerImporte(hoja.Cell(fila, 4 + i)) ?? 0;
-                    if ((rfc.Length == 12 || rfc.Length == 13) && monto > 0)
+                    decimal? importe = LeerImporte(hoja.Cell(fila, 4 + indice));
+                    if ((rfc.Length == 12 || rfc.Length == 13) && importe > 0)
                     {
-                        validos[i]++;
-                        sumas[i] += monto;
+                        validos[indice]++;
+                        sumas[indice] += importe.Value;
                     }
-                    else if (monto != 0 || rfc.Length > 0)
-                        invalidos[i]++;
+                    else if (importe != 0 || !string.IsNullOrWhiteSpace(rfc))
+                        invalidos[indice]++;
                 }
             }
+            if (!tieneTotal)
+                throw new InvalidDataException($"No se encontró el renglón Total en la hoja {nombre}.");
 
-            if (!footer)
-                throw new InvalidDataException($"No se encontró fila Total en la hoja {nombre}.");
-
-            for (int i = 0; i < 2; i++)
-                resultado.Add(new Resumen {
+            for (int indice = 0; indice < 2; indice++)
+                resultado.Add(new Resumen
+                {
                     Hoja = nombre,
-                    Ciclo = ciclo,
-                    Quincena = i == 0 ? qna1 : qna2,
-                    RegistrosValidos = validos[i],
-                    FilasNoValidas = invalidos[i],
-                    Importe = sumas[i],
-                    TotalDeclarado = declarados[i]
+                    ConceptoSugerido = concepto,
+                    Quincena = indice == 0 ? qna1 : qna2,
+                    RegistrosValidos = validos[indice],
+                    FilasNoValidas = invalidos[indice],
+                    Importe = sumas[indice],
+                    TotalDeclarado = declarados[indice]
                 });
         }
         return resultado;
@@ -115,10 +139,10 @@ public static class AhorroBienestarCifrasReader
         if (celda.IsEmpty()) return null;
         if (celda.Value.IsNumber) return (decimal)celda.Value.GetNumber();
         var texto = celda.GetValue<string>().Trim();
-        if (decimal.TryParse(texto, System.Globalization.NumberStyles.Number,
-            System.Globalization.CultureInfo.GetCultureInfo("es-MX"), out var valor)) return valor;
-        if (decimal.TryParse(texto, System.Globalization.NumberStyles.Number,
-            System.Globalization.CultureInfo.InvariantCulture, out valor)) return valor;
+        if (decimal.TryParse(texto, NumberStyles.Number, CultureInfo.GetCultureInfo("es-MX"), out var valor))
+            return valor;
+        if (decimal.TryParse(texto, NumberStyles.Number, CultureInfo.InvariantCulture, out valor))
+            return valor;
         return null;
     }
 }
