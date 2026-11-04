@@ -25,11 +25,17 @@
 - `AhorroCambio` (o bitácora equivalente): snapshot de antes/después de cada cambio: registro existente/nuevo, monto, status, encabezado, y ajustes a socio (CURP/provisional) con referencia a la carga; verificación de concurrencia.
 - Mantener los encabezados históricos sin borrar ni reinterpretar su atribución, hasta tener evidencia para migrarlos.
 
-### Política de unicidad y coexistencia
-Antes de modificar índices de `Ahorro` o `AhorroEncabezado`, acordar la semántica financiera de un RFC que aparece en ambos orígenes dentro de la misma quincena y ciclo:
-- **Opción A:** una sola aportación consolidada por socio/quincena/ciclo, con múltiples líneas de origen y una regla documentada de agregación.
-- **Opción B:** aportaciones independientes por institución, con revisión de todas las consultas que suman ahorros, finiquitos y tableros.
-**No elegir sin contrastar datos históricos y reglas del negocio**. Nunca eliminar índices únicos existentes hasta completar ese análisis.
+### Regla de negocio confirmada: dos contratos y dos retenciones
+**Confirmada por el responsable:** si un mismo RFC aparece en un archivo de IMSS Bienestar y otro de Secretaría de Salud de Zacatecas (SSZ) para la misma quincena/año/ciclo, el socio tiene **dos contratos** y ambas retenciones son válidas, independientes y acumulables.
+
+- Identificar cada aportación por **Socio + Quincena + Año + Ciclo + Institución origen**; nunca interpretar la segunda fuente como una reimportación de la primera.
+- El ahorro total del socio suma ambas retenciones; el detalle y los reportes deben mostrar los dos movimientos y sus importes por separado.
+- La reimportación o corrección de un archivo solo puede sustituir movimientos de **la misma institución, quincena, año y ciclo**, con auditoría de cambios y validación de duplicados dentro de cada archivo.
+- La reversión de una carga de una institución no debe afectar la otra, incluso cuando corresponde al mismo RFC.
+- La institución de origen de la retención pertenece al movimiento; no debe deducirse de `Socio.InstitucionActual` ni sobrescribir el historial laboral.
+- Revisar índices únicos, consultas agregadas, finiquitos, saldos, tableros e importadores relacionados antes de modificar el esquema, para impedir sumas dobles accidentales.
+- Migrar registros históricos **sin inferir institución cuando no exista evidencia**: marcar como origen pendiente de clasificación y mantener intactos sus importes.
+- No eliminar ni sustituir índices actuales hasta completar migración aditiva, conciliación y aprobación del procedimiento SQL.
 
 ### Flujo de importación
 1. Preanalizar archivo: hash, formato detectado (por encabezados, no por adscripción actual), ciclo y quincena; vista previa y posibles conflictos.
@@ -71,5 +77,5 @@ Antes de modificar índices de `Ahorro` o `AhorroEncabezado`, acordar la semánt
 - El saldo total y las aportaciones del socio se concilian antes y después de cada operación.
 - Los procesos de compilación, pruebas y migraciones se realizan únicamente en desarrollo.
 
-## Decisión pendiente
-Validar con datos sintéticos y revisión del modelo qué ocurre si un mismo RFC aporta en el mismo período/ciclo desde SSZ e IMSS Bienestar. La semántica debe quedar fijada antes de desarrollar los cambios en claves únicas y suma de saldos.
+## Decisión confirmada y revisión técnica pendiente
+Confirmado: ambas retenciones corresponden a dos contratos y deben contabilizarse separadamente y sumar al ahorro total. Pendiente: verificar con datos sintéticos todas las consultas y efectos de los índices actuales antes de modificar tablas, e identificar el procedimiento seguro de migración de registros históricos.
