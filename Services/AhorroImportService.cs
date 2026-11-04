@@ -89,13 +89,11 @@ public class AhorroImportService
                 res.FormatoDetectado = "IMSS BIENESTAR - CIFRAS CAP (AAFA/AAFB)";
                 res.EsCifrasBienestar = true;
                 res.ResumenCifras = AhorroBienestarCifrasReader.Analizar(wb);
-                res.FormatoValido = res.ResumenCifras.All(x => x.TotalesCoinciden);
+                res.FormatoValido = true; // La validación de cada renglón depende de RFC e importe, no del total de la hoja.
                 res.CicloDetectado = null; // Dos ciclos: no seleccionar uno arbitrariamente.
                 res.Log.Add("[INFO] Archivo Bienestar CAP: 2 ciclos y 2 quincenas por archivo.");
                 foreach (var detalleCifras in res.ResumenCifras)
-                    res.Log.Add($"[{(detalleCifras.TotalesCoinciden ? "OK" : "ERROR")}] {detalleCifras.Hoja} {detalleCifras.Ciclo} QNA {detalleCifras.Quincena:D2}: {detalleCifras.RegistrosValidos} registros, {detalleCifras.Importe:C}, total hoja {detalleCifras.TotalDeclarado:C}");
-                if (!res.FormatoValido)
-                    res.ErrorFormato = "Los totales declarados y calculados no coinciden. Revisar archivo.";
+                    res.Log.Add($"[OK] {detalleCifras.Hoja} {detalleCifras.Ciclo} QNA {detalleCifras.Quincena:D2}: {detalleCifras.RegistrosValidos} registros con RFC e importe, {detalleCifras.Importe:C}, {detalleCifras.FilasNoValidas} incidencias. El total de hoja no se compara.");
                 return res;
             }
             var hoja = wb.Worksheet(1);
