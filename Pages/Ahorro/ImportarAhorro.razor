@@ -105,6 +105,66 @@
             }
         </div>
 
+        @if (analisis.EsCifrasBienestar)
+        {
+            <div class="aviso-info" style="margin-top:1rem; border-left:3px solid #d97706; background:#fffbeb;">
+                <i class="ti ti-alert-triangle"></i>
+                <div>
+                    <strong>IMSS Bienestar — asignación de conceptos por pestaña</strong>
+                    <p style="margin:.35rem 0;">Revisa cada concepto antes de aplicar las quincenas. Las hojas generales de resumen no generan descuentos.</p>
+                    <p style="margin:.35rem 0;"><strong>Solo vista previa:</strong> todavía no se permiten importaciones CAP hasta implementar la separación por institución y la reversión auditada.</p>
+                </div>
+            </div>
+            @foreach (var grupo in analisis.ResumenCifras.GroupBy(x => x.Hoja))
+            {
+                var hoja = grupo.Key;
+                var seleccionado = conceptosSeleccionados[hoja];
+                var valido = AhorroBienestarCifrasReader.EsConceptoConocido(hoja, seleccionado);
+                <div class="form-card" style="margin-top:.75rem; padding:1rem;">
+                    <div class="form-group" style="margin-bottom:.6rem;">
+                        <label>Hoja @hoja — concepto de descuento</label>
+                        <select class="form-control" value="@seleccionado"
+                                @onchange="e => SeleccionarConcepto(hoja, e.Value?.ToString())">
+                            <option value="@AhorroBienestarCifrasReader.Concepto.AhorroNavideno">Ahorro navideño</option>
+                            <option value="@AhorroBienestarCifrasReader.Concepto.AhorroEscolar">Ahorro escolar</option>
+                            <option value="@AhorroBienestarCifrasReader.Concepto.Prestamos">Préstamos (excluir de ahorro)</option>
+                            <option value="@AhorroBienestarCifrasReader.Concepto.FondoMutualista">Fondo mutualista (excluir de ahorro)</option>
+                            <option value="@AhorroBienestarCifrasReader.Concepto.NoImportar">No importar</option>
+                        </select>
+                        @if (!valido)
+                        {
+                            <div class="alert-error" style="margin-top:.4rem;">
+                                El concepto elegido no coincide con la clave @hoja. No se permite aplicar una hoja como otro concepto sin revisión.
+                            </div>
+                        }
+                    </div>
+                    <div class="table-container">
+                        <table class="tabla">
+                            <thead>
+                                <tr><th>QNA</th><th>Registros</th><th>Filas con incidencia</th><th class="text-right">Importe</th><th class="text-right">Total declarado</th><th>Conciliación</th></tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var item in grupo)
+                            {
+                                <tr>
+                                    <td>@item.Quincena.ToString("D2")</td>
+                                    <td>@item.RegistrosValidos</td>
+                                    <td>@item.FilasNoValidas</td>
+                                    <td class="text-right">@item.Importe.ToString("C")</td>
+                                    <td class="text-right">@item.TotalDeclarado?.ToString("C")</td>
+                                    <td>@(item.TotalesCoinciden ? "Correcto" : "Diferencia")</td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (seleccionado is AhorroBienestarCifrasReader.Concepto.Prestamos or AhorroBienestarCifrasReader.Concepto.FondoMutualista or AhorroBienestarCifrasReader.Concepto.NoImportar)
+                    {
+                        <span class="text-muted" style="font-size:12px;">Esta pestaña queda fuera del módulo de ahorro.</span>
+                    }
+                </div>
+            }
+        }
         @if (!analisis.FormatoValido)
         {
             <div class="alert-error" style="margin-top:.75rem;">
@@ -146,7 +206,7 @@
         <div class="form-actions" style="margin-top:1.25rem;">
             <button class="btn-primary"
                     @onclick="Importar"
-                    disabled="@(!analisis.FormatoValido || cargando || (cargaPrevia is not null && !confirmarReimportacion))">
+                    disabled="@(!analisis.FormatoValido || analisis.EsCifrasBienestar || cargando || (cargaPrevia is not null && !confirmarReimportacion))">
                 @if (cargando)
                 {
                     <span><i class="ti ti-loader-2"></i> Importando...</span>
@@ -280,6 +340,14 @@
     private AhorroImportService.ResultadoImportacion? resultado;
     private AhorroEncabezado? cargaPrevia;
     private bool confirmarReimportacion = false;
+    private Dictionary<string, AhorroBienestarCifrasReader.Concepto> conceptosSeleccionados = new(StringComparer.OrdinalIgnoreCase);
+
+    private void SeleccionarConcepto(string hoja, string? valor)
+    {
+        if (Enum.TryParse<AhorroBienestarCifrasReader.Concepto>(valor, out var concepto)
+            && conceptosSeleccionados.ContainsKey(hoja))
+            conceptosSeleccionados[hoja] = concepto;
+    }
 
     /// <summary>Cuando el usuario ajusta manualmente ciclo/quincena/año hay
     /// que volver a checar si esa combinación ya se cargó antes.</summary>
@@ -299,6 +367,7 @@
         analisis      = null;
         cargaPrevia   = null;
         confirmarReimportacion = false;
+        conceptosSeleccionados.Clear();
 
         try
         {
@@ -308,6 +377,13 @@
             ms.Position = 0;
 
             analisis = AhorroImportService.Analizar(ms);
+            if (analisis.EsCifrasBienestar)
+            {
+                conceptosSeleccionados = analisis.ResumenCifras
+                    .GroupBy(x => x.Hoja)
+                    .ToDictionary(g => g.Key, g => g.First().ConceptoSugerido, StringComparer.OrdinalIgnoreCase);
+                return; // CAP uses multiple cycles/quincenas, not the legacy single-cycle fields.
+            }
 
             // Aplicar valores detectados
             if (analisis.CicloDetectado.HasValue)
@@ -336,7 +412,7 @@
 
     private async Task Importar()
     {
-        if (archivoRef is null || analisis is null) return;
+        if (archivoRef is null || analisis is null || analisis.EsCifrasBienestar) return;
 
         cargando  = true;
         resultado = null;
@@ -373,6 +449,7 @@
         nombreArchivo = "";
         analisis      = null;
         resultado     = null;
+        conceptosSeleccionados.Clear();
     }
 
     private static string ColorLog(string l) => l switch
