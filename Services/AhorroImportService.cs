@@ -62,6 +62,12 @@ public class AhorroImportService
         public bool FormatoValido { get; set; }
         public string? ErrorFormato { get; set; }
         public List<string> Log { get; set; } = new();
+
+        // El formato CAP Bienestar contiene dos ciclos y dos quincenas.
+        // Su deteccion NO implica permiso de importacion: primero debe implementarse
+        // la separacion por fuente para evitar sobrescritura de ahorros de SSZ.
+        public bool EsCifrasBienestar { get; set; }
+        public List<AhorroBienestarCifrasReader.Resumen> ResumenCifras { get; set; } = new();
     }
 
     /// <summary>
@@ -78,6 +84,20 @@ public class AhorroImportService
         try
         {
             using var wb = new XLWorkbook(excelStream);
+            if (AhorroBienestarCifrasReader.EsFormato(wb))
+            {
+                res.FormatoDetectado = "IMSS BIENESTAR - CIFRAS CAP (AAFA/AAFB)";
+                res.EsCifrasBienestar = true;
+                res.ResumenCifras = AhorroBienestarCifrasReader.Analizar(wb);
+                res.FormatoValido = res.ResumenCifras.All(x => x.TotalesCoinciden);
+                res.CicloDetectado = null; // Dos ciclos: no seleccionar uno arbitrariamente.
+                res.Log.Add("[INFO] Archivo Bienestar CAP: 2 ciclos y 2 quincenas por archivo.");
+                foreach (var detalleCifras in res.ResumenCifras)
+                    res.Log.Add($"[{(detalleCifras.TotalesCoinciden ? "OK" : "ERROR")}] {detalleCifras.Hoja} {detalleCifras.Ciclo} QNA {detalleCifras.Quincena:D2}: {detalleCifras.RegistrosValidos} registros, {detalleCifras.Importe:C}, total hoja {detalleCifras.TotalDeclarado:C}");
+                if (!res.FormatoValido)
+                    res.ErrorFormato = "Los totales declarados y calculados no coinciden. Revisar archivo.";
+                return res;
+            }
             var hoja = wb.Worksheet(1);
 
             res.NombrePestana = hoja.Name;
@@ -194,6 +214,8 @@ public class AhorroImportService
         try
         {
             using var wb = new XLWorkbook(excelStream);
+            if (AhorroBienestarCifrasReader.EsFormato(wb))
+                throw new InvalidOperationException("Este libro Bienestar CAP fue reconocido, pero su importacion requiere primero separar aportaciones por institucion en la base de datos. No se guardo ninguna retencion.");
             var hoja = wb.Worksheet(1);
             res.PestanaLeida = hoja.Name;
 
