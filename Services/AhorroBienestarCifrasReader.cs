@@ -37,8 +37,6 @@ public static class AhorroBienestarCifrasReader
         public int RegistrosValidos { get; init; }
         public int FilasNoValidas { get; init; }
         public decimal Importe { get; init; }
-        public decimal? TotalDeclarado { get; init; }
-        public bool TotalesCoinciden => TotalDeclarado.HasValue && Importe == TotalDeclarado.Value;
     }
 
     public static bool EsFormato(XLWorkbook libro)
@@ -86,8 +84,6 @@ public static class AhorroBienestarCifrasReader
             var sumas = new decimal[2];
             var validos = new int[2];
             var invalidos = new int[2];
-            decimal?[] declarados = new decimal?[2];
-            bool tieneTotal = false;
 
             for (int fila = filaCabecera + 1; fila <= ultima; fila++)
             {
@@ -95,9 +91,8 @@ public static class AhorroBienestarCifrasReader
                 string trabajador = hoja.Cell(fila, 3).GetValue<string>().Trim();
                 if (trabajador.Equals("Total", StringComparison.OrdinalIgnoreCase))
                 {
-                    declarados[0] = LeerImporte(hoja.Cell(fila, 4));
-                    declarados[1] = LeerImporte(hoja.Cell(fila, 5));
-                    tieneTotal = true;
+                    // Los renglones TOTAL son informativos; no se usan para validar
+                    // ni sumar importes. Cada QNA se calcula de RFC + importe.
                     break;
                 }
 
@@ -112,13 +107,12 @@ public static class AhorroBienestarCifrasReader
                         validos[indice]++;
                         sumas[indice] += importe.Value;
                     }
-                    else if (importe != 0 || !string.IsNullOrWhiteSpace(rfc))
+                    else if (!hoja.Cell(fila, 4 + indice).IsEmpty() &&
+                             (!importe.HasValue || importe <= 0 ||
+                              (rfc.Length != 12 && rfc.Length != 13)))
                         invalidos[indice]++;
                 }
             }
-            if (!tieneTotal)
-                throw new InvalidDataException($"No se encontró el renglón Total en la hoja {nombre}.");
-
             for (int indice = 0; indice < 2; indice++)
                 resultado.Add(new Resumen
                 {
@@ -127,8 +121,7 @@ public static class AhorroBienestarCifrasReader
                     Quincena = indice == 0 ? qna1 : qna2,
                     RegistrosValidos = validos[indice],
                     FilasNoValidas = invalidos[indice],
-                    Importe = sumas[indice],
-                    TotalDeclarado = declarados[indice]
+                    Importe = sumas[indice]
                 });
         }
         return resultado;
