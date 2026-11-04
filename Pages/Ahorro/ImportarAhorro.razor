@@ -105,6 +105,35 @@
             }
         </div>
 
+        @if (analisis.EsCifrasBienestar)
+        {
+            <div class="aviso-info" style="margin-top:1rem; border-left:3px solid #d97706; background:#fffbeb;">
+                <i class="ti ti-alert-triangle"></i>
+                <div>
+                    <strong>IMSS Bienestar — archivo CAP de dos quincenas reconocido.</strong>
+                    <p style="margin:.35rem 0;">El archivo incluye AAFB (Escolar) y AAFA (Navideño). Se muestran los importes de cada quincena sin guardar datos.</p>
+                    <p style="margin:.35rem 0;"><strong>Importación temporalmente deshabilitada:</strong> primero debe instalarse y probarse la separación de aportaciones por institución, para no sobrescribir los ahorros de Secretaría de Salud.</p>
+                </div>
+            </div>
+            <div class="table-container" style="margin-top:.75rem;">
+                <table class="tabla">
+                    <thead><tr><th>Hoja</th><th>Ciclo</th><th>Quincena</th><th>Registros</th><th class="text-right">Importe</th><th>Conciliación</th></tr></thead>
+                    <tbody>
+                    @foreach (var item in analisis.ResumenCifras)
+                    {
+                        <tr>
+                            <td>@item.Hoja</td>
+                            <td>@item.Ciclo</td>
+                            <td>@item.Quincena.ToString("D2")</td>
+                            <td>@item.RegistrosValidos</td>
+                            <td class="text-right">@item.Importe.ToString("C")</td>
+                            <td>@(item.TotalesCoinciden ? "Correcto" : "Diferencia")</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
         @if (!analisis.FormatoValido)
         {
             <div class="alert-error" style="margin-top:.75rem;">
@@ -146,7 +175,7 @@
         <div class="form-actions" style="margin-top:1.25rem;">
             <button class="btn-primary"
                     @onclick="Importar"
-                    disabled="@(!analisis.FormatoValido || cargando || (cargaPrevia is not null && !confirmarReimportacion))">
+                    disabled="@(!analisis.FormatoValido || analisis.EsCifrasBienestar || cargando || (cargaPrevia is not null && !confirmarReimportacion))">
                 @if (cargando)
                 {
                     <span><i class="ti ti-loader-2"></i> Importando...</span>
