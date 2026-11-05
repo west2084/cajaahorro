@@ -13,6 +13,8 @@ public class AppDbContext : DbContext
     public DbSet<AmortizacionDetalle>     AmortizacionDetalles      => Set<AmortizacionDetalle>();
     public DbSet<Ahorro>                  Ahorros                   => Set<Ahorro>();
     public DbSet<AhorroEncabezado>        AhorroEncabezados         => Set<AhorroEncabezado>();
+    public DbSet<AhorroBienestarCarga>    AhorroBienestarCargas      => Set<AhorroBienestarCarga>();
+    public DbSet<AhorroBienestarCargaLinea> AhorroBienestarCargaLineas => Set<AhorroBienestarCargaLinea>();
     public DbSet<RetencionEncabezado>     RetencionEncabezados      => Set<RetencionEncabezado>();
     public DbSet<RetencionLinea>          RetencionLineas           => Set<RetencionLinea>();
     public DbSet<PagoQuincenalEncabezado> PagoQuincenalEncabezados  => Set<PagoQuincenalEncabezado>();
@@ -121,6 +123,24 @@ public class AppDbContext : DbContext
              .HasForeignKey(a => a.AhorroEncabezadoId)
              .OnDelete(DeleteBehavior.SetNull)
              .IsRequired(false);
+        });
+
+        // Bitácora de precargas aislada: NO tiene relación con Ahorros y
+        // no cambia índices, aportaciones ni saldos históricos.
+        modelBuilder.Entity<AhorroBienestarCarga>(e =>
+        {
+            e.ToTable("AhorroBienestarCargas");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Sha256).IsUnique();
+            e.Property(x => x.Estado).HasDefaultValue("Precarga");
+        });
+        modelBuilder.Entity<AhorroBienestarCargaLinea>(e =>
+        {
+            e.ToTable("AhorroBienestarCargaLineas");
+            e.HasKey(x => x.Id);
+            e.HasOne(x => x.Carga).WithMany(x => x.Lineas)
+             .HasForeignKey(x => x.CargaId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.CargaId, x.FilaExcel }).IsUnique();
         });
 
         // ── RetencionEncabezado ──────────────────────────────────────────────

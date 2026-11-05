@@ -1,5 +1,8 @@
 @page "/ahorro-importar"
 @inject AhorroImportService AhorroSvc
+@inject AhorroBienestarGuardadoService BienestarGuardado
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthState
+@inject IWebHostEnvironment Entorno
 @inject NavigationManager Nav
 @using Microsoft.AspNetCore.Components.Forms
 
@@ -183,6 +186,25 @@
                 <strong><i class="ti ti-lock"></i> Vista previa: sin guardado a SQL Server.</strong>
                 La aplicación definitiva de IMSS Bienestar permanecerá deshabilitada hasta que exista la separación segura por institución y contrato y la bitácora de reversión.
             </div>
+
+            @if (Entorno.IsDevelopment())
+            {
+                <AuthorizeView Roles="Administrador">
+                    <Authorized>
+                        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.85rem;margin-top:1rem;">
+                            <strong><i class="ti ti-database"></i> Registro de precarga para pruebas</strong>
+                            <p style="font-size:12px;margin:.4rem 0;">Esta operación crea una bitácora con los renglones válidos e incidencias. No registra aportaciones ni cambia saldos, socios o préstamos.</p>
+                            <button class="btn-secondary" @onclick="GuardarPrecargaBienestar" disabled="@guardandoPrecarga">
+                                @(guardandoPrecarga ? "Registrando..." : "Registrar precarga (sin afectar saldos)")
+                            </button>
+                            @if (!string.IsNullOrEmpty(mensajePrecarga))
+                            {
+                                <p style="font-size:12px;margin:.5rem 0 0;">@mensajePrecarga</p>
+                            }
+                        </div>
+                    </Authorized>
+                </AuthorizeView>
+            }
 
             <div style="margin-top:1rem;font-size:13px;">
                 <strong>Incidencias (@detalle.Incidencias.Count)</strong>
@@ -456,6 +478,42 @@
     private AhorroImportService.ResultadoImportacion? resultado;
     private AhorroEncabezado? cargaPrevia;
     private bool confirmarReimportacion = false;
+    private bool guardandoPrecarga;
+    private string mensajePrecarga = "";
+
+    private async Task GuardarPrecargaBienestar()
+    {
+        if (guardandoPrecarga || archivoRef is null || analisis?.EsDetalleBienestar != true ||
+            !Entorno.IsDevelopment()) return;
+        var estado = await AuthState.GetAuthenticationStateAsync();
+        if (estado.User.Identity?.IsAuthenticated != true || !estado.User.IsInRole("Administrador"))
+        {
+            mensajePrecarga = "No tienes permiso para registrar precargas.";
+            return;
+        }
+        guardandoPrecarga = true;
+        mensajePrecarga = "";
+        try
+        {
+            using var input = archivoRef.OpenReadStream(maxAllowedSize: 30 * 1024 * 1024);
+            var guardado = await BienestarGuardado.GuardarPrecargaAsync(
+                input, nombreArchivo, estado.User.Identity!.Name ?? "");
+            mensajePrecarga = $"Precarga #{guardado.Id} registrada. " +
+                $"{guardado.Ahorros} movimientos de ahorro, {guardado.Otros} de otros conceptos, " +
+                $"{guardado.Incidencias} incidencias. Importe informativo: {guardado.Importe:C}. " +
+                "No se modificaron saldos.";
+        }
+        catch (Exception)
+        {
+            mensajePrecarga = "No se pudo registrar la precarga. Verifica que el script SQL de desarrollo " +
+                "esté instalado, que el archivo no se haya cargado antes y consulta el registro técnico.";
+        }
+        finally
+        {
+            guardandoPrecarga = false;
+        }
+    }
+
     private Dictionary<string, AhorroBienestarCifrasReader.Concepto> conceptosSeleccionados = new(StringComparer.OrdinalIgnoreCase);
 
     private void SeleccionarConcepto(string hoja, string? valor)
@@ -483,6 +541,7 @@
         analisis      = null;
         cargaPrevia   = null;
         confirmarReimportacion = false;
+        mensajePrecarga = "";
         conceptosSeleccionados.Clear();
 
         try
