@@ -15,22 +15,32 @@
     </button>
 </div>
 
-<!-- Aviso informativo -->
-<div class="aviso-info" style="max-width:760px; margin-bottom:1.5rem;">
+<!-- Guía según el formato detectado -->
+<div class="aviso-info" style="max-width:900px; margin-bottom:1.5rem;">
     <i class="ti ti-info-circle"></i>
     <div>
-        <strong>¿Cómo funciona?</strong>
-        Sube el archivo Excel de descuentos de ahorro — soporta el formato de
-        <em>Servicios de Salud de Zacatecas</em> (SSZ) y el de <em>IMSS Bienestar</em>.
-        El sistema detecta el formato y el ciclo (<strong>NAVIDEÑO</strong> o <strong>ESCOLAR</strong>) del título,
-        y la quincena del nombre de la pestaña (o del título, si la pestaña no la trae).
-        Si lo necesitas, puedes ajustarlos antes de importar.
-        Puedes cargar un archivo por ciclo por quincena; si lo reimportas, los registros se actualizan.
+        <strong>¿Cómo funciona la precarga?</strong>
+        @if (analisis?.EsDetalleBienestar == true)
+        {
+            <span>El archivo de IMSS Bienestar se lee por los encabezados de la primera hoja.
+                Se agrupan los conceptos AAFA, AAFB, AA39 y AAFM por quincena, con importes calculados de RFC e importe válido.
+                Revisa incidencias antes de cualquier aplicación. Esta pantalla es únicamente de consulta.</span>
+        }
+        else if (analisis?.EsCifrasBienestar == true)
+        {
+            <span>El formato CAP se revisa por pestaña de concepto y por quincena. El total impreso de la hoja no se utiliza para calcular el importe.</span>
+        }
+        else
+        {
+            <span>Selecciona el Excel de descuentos de ahorro de Secretaría de Salud o IMSS Bienestar.
+                El sistema analizará su estructura y, para los archivos tradicionales de un solo ciclo y quincena,
+                podrás confirmar el período antes de importar.</span>
+        }
     </div>
 </div>
 
 <!-- Formulario de carga -->
-<div class="form-card" style="max-width:720px; margin-bottom:1.5rem;">
+<div class="form-card" style="max-width:1000px; margin-bottom:1.5rem;">
     <div class="form-group">
         <label>Archivo Excel (.xlsx)</label>
         <InputFile OnChange="OnArchivoSeleccionado" accept=".xlsx" />
@@ -44,6 +54,8 @@
 
     @if (analisis is not null)
     {
+        @if (!analisis.EsDetalleBienestar && !analisis.EsCifrasBienestar)
+        {
         <!-- Ciclo detectado / selector -->
         <div style="background:#f8f9fa; border:1px solid #e5e7eb; border-radius:8px;
                     padding:12px 16px; margin-top:.75rem;">
@@ -105,48 +117,100 @@
             }
         </div>
 
+        }
+
         @if (analisis.EsDetalleBienestar && analisis.ResumenDetalle is not null)
         {
-            <div class="aviso-info" style="margin-top:1rem; border-left:3px solid #2563eb;">
-                <i class="ti ti-info-circle"></i>
-                <div>
-                    <strong>IMSS Bienestar — primera hoja: @analisis.ResumenDetalle.Hoja</strong>
-                    <p style="margin:.35rem 0;">La estructura se validó por encabezados, independientemente del nombre de la pestaña. Se contabilizan RFC con importe positivo y estatus LIQUIDADO. CHEQUE o CANCELADO se envían a incidencias.</p>
-                    <p style="margin:.35rem 0;"><strong>Precarga informativa:</strong> la aplicación definitiva todavía está deshabilitada para proteger las aportaciones de SSZ y los contratos múltiples.</p>
+            var detalle = analisis.ResumenDetalle;
+            var ahorro = detalle.Resumenes.Where(x => x.Concepto is "AAFA" or "AAFB").ToList();
+            var otros = detalle.Resumenes.Where(x => x.Concepto is not ("AAFA" or "AAFB")).ToList();
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:1rem; margin-top:1rem;">
+                <strong><i class="ti ti-file-check"></i> Formato reconocido: IMSS Bienestar</strong>
+                <div style="font-size:12px; color:#475569; margin-top:.35rem;">
+                    Hoja: <strong>@detalle.Hoja</strong> · Institución: <strong>IMSS Bienestar</strong> ·
+                    Períodos: <strong>@string.Join(", ", detalle.Resumenes.Select(x => $"QNA {x.Quincena:D2}/{x.Anio}").Distinct().OrderBy(x => x))</strong>
+                </div>
+                <div style="font-size:12px; color:#475569; margin-top:.35rem;">
+                    Se encontraron conceptos de ahorro y otros descuentos. Aquí se previsualizan todos, pero los conceptos distintos de AAFA y AAFB quedan fuera del módulo de ahorro.
                 </div>
             </div>
-            <div class="table-container" style="margin-top:.75rem;">
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:.75rem;margin-top:1rem;">
+                <div class="resultado-stat">
+                    <span class="resultado-numero">@ahorro.Sum(x => x.RegistrosValidos)</span>
+                    <span class="resultado-label">Movimientos de ahorro válidos</span>
+                </div>
+                <div class="resultado-stat">
+                    <span class="resultado-numero" style="color:#059669;">@ahorro.Sum(x => x.Importe).ToString("C")</span>
+                    <span class="resultado-label">Importe de ahorro en precarga</span>
+                </div>
+                <div class="resultado-stat">
+                    <span class="resultado-numero">@otros.Sum(x => x.RegistrosValidos)</span>
+                    <span class="resultado-label">Otros conceptos (no ahorro)</span>
+                </div>
+                <div class="resultado-stat">
+                    <span class="resultado-numero" style="color:@(detalle.Incidencias.Count > 0 ? "#b45309" : "#059669");">@detalle.Incidencias.Count</span>
+                    <span class="resultado-label">Incidencias para revisar</span>
+                </div>
+            </div>
+
+            <h3 style="font-size:15px;margin:1.25rem 0 .5rem;">Desglose por concepto y quincena</h3>
+            <div class="table-container">
                 <table class="tabla">
                     <thead>
-                        <tr><th>Concepto</th><th>QNA/año</th><th class="text-right">Registros válidos</th><th class="text-right">Importe calculado</th><th>Fecha de pago</th></tr>
+                        <tr><th>Concepto</th><th>QNA/año</th><th class="text-right">Registros</th><th class="text-right">Importe calculado</th><th>Fecha de pago</th><th>Destino</th></tr>
                     </thead>
                     <tbody>
-                    @foreach (var item in analisis.ResumenDetalle.Resumenes)
+                    @foreach (var item in detalle.Resumenes)
                     {
+                        var esAhorro = item.Concepto is "AAFA" or "AAFB";
                         <tr>
-                            <td>@item.Concepto</td>
+                            <td>
+                                <strong>@item.Concepto</strong>
+                                <div class="text-muted" style="font-size:11px;">@NombreConcepto(item.Concepto)</div>
+                            </td>
                             <td>@item.Quincena.ToString("D2")/@item.Anio</td>
                             <td class="text-right">@item.RegistrosValidos</td>
                             <td class="text-right">@item.Importe.ToString("C")</td>
-                            <td>@item.FechaPago?.ToString("dd/MM/yyyy")</td>
+                            <td>@(item.FechaPago?.ToString("dd/MM/yyyy") ?? "Sin fecha")</td>
+                            <td style="font-size:12px;">@(esAhorro ? "Ahorro" : "Otro concepto")</td>
                         </tr>
                     }
                     </tbody>
                 </table>
             </div>
-            <div style="margin-top:.75rem;font-size:13px;">
-                <strong>Incidencias: @analisis.ResumenDetalle.Incidencias.Count</strong>
-                @if (analisis.ResumenDetalle.Incidencias.Count > 0)
+            <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.75rem;margin-top:.85rem;font-size:12px;">
+                <strong><i class="ti ti-lock"></i> Vista previa: sin guardado a SQL Server.</strong>
+                La aplicación definitiva de IMSS Bienestar permanecerá deshabilitada hasta que exista la separación segura por institución y contrato y la bitácora de reversión.
+            </div>
+
+            <div style="margin-top:1rem;font-size:13px;">
+                <strong>Incidencias (@detalle.Incidencias.Count)</strong>
+                @if (detalle.Incidencias.Any())
                 {
-                    <details>
-                        <summary>Ver filas que no se aplicarían</summary>
-                        <ul>
-                        @foreach (var incidencia in analisis.ResumenDetalle.Incidencias.Take(100))
-                        {
-                            <li>Fila @incidencia.Fila — @incidencia.RFC — @incidencia.Concepto: @incidencia.Motivo</li>
-                        }
-                        </ul>
+                    <details style="margin-top:.35rem;">
+                        <summary style="cursor:pointer;">Consultar renglones no aplicables (máximo 100 visibles)</summary>
+                        <div class="table-container" style="margin-top:.5rem;">
+                            <table class="tabla">
+                                <thead><tr><th>Fila</th><th>RFC</th><th>Concepto</th><th>Motivo</th></tr></thead>
+                                <tbody>
+                                @foreach (var incidencia in detalle.Incidencias.Take(100))
+                                {
+                                    <tr>
+                                        <td>@incidencia.Fila</td>
+                                        <td>@incidencia.RFC</td>
+                                        <td>@incidencia.Concepto</td>
+                                        <td>@incidencia.Motivo</td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
                     </details>
+                }
+                else
+                {
+                    <span style="color:#059669;"> No se detectaron incidencias.</span>
                 }
             </div>
         }
@@ -247,23 +311,32 @@
         }
 
         <div class="form-actions" style="margin-top:1.25rem;">
-            <button class="btn-primary"
-                    @onclick="Importar"
-                    disabled="@(!analisis.FormatoValido || (analisis.EsCifrasBienestar || analisis.EsDetalleBienestar) || cargando || (cargaPrevia is not null && !confirmarReimportacion))">
-                @if (cargando)
-                {
-                    <span><i class="ti ti-loader-2"></i> Importando...</span>
-                }
-                else
-                {
-                    <span>
-                        <i class="ti ti-database-import"></i>
-                        Importar @cicloSeleccionado QNA @quincenaSeleccionada.ToString("D2")/@anioSeleccionado
-                    </span>
-                }
-            </button>
+            @if (analisis.EsDetalleBienestar || analisis.EsCifrasBienestar)
+            {
+                <button class="btn-secondary" disabled title="Pendiente de habilitar la importación segura">
+                    <i class="ti ti-lock"></i> Importación pendiente de habilitar
+                </button>
+            }
+            else
+            {
+                <button class="btn-primary"
+                        @onclick="Importar"
+                        disabled="@(!analisis.FormatoValido || cargando || (cargaPrevia is not null && !confirmarReimportacion))">
+                    @if (cargando)
+                    {
+                        <span><i class="ti ti-loader-2"></i> Importando...</span>
+                    }
+                    else
+                    {
+                        <span>
+                            <i class="ti ti-database-import"></i>
+                            Importar @cicloSeleccionado QNA @quincenaSeleccionada.ToString("D2")/@anioSeleccionado
+                        </span>
+                    }
+                </button>
+            }
             <button class="btn-secondary" @onclick="Limpiar" disabled="@cargando">
-                <i class="ti ti-x"></i> Cancelar
+                <i class="ti ti-x"></i> @(analisis.EsDetalleBienestar || analisis.EsCifrasBienestar ? "Seleccionar otro archivo" : "Cancelar")
             </button>
         </div>
     }
@@ -495,6 +568,15 @@
         resultado     = null;
         conceptosSeleccionados.Clear();
     }
+
+    private static string NombreConcepto(string concepto) => concepto switch
+    {
+        "AAFA" => "Ahorro navideño",
+        "AAFB" => "Ahorro escolar",
+        "AA39" => "Préstamos",
+        "AAFM" => "Fondo mutualista",
+        _ => "Concepto por revisar"
+    };
 
     private static string ColorLog(string l) => l switch
     {
