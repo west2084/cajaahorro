@@ -36,7 +36,19 @@ jobs:
           New-Item -ItemType Directory -Force -Path $out | Out-Null
           Copy-Item -Path (Join-Path $source '*') -Destination $out -Recurse -Force
           Get-ChildItem -Path $out -Filter 'appsettings*.json' -File | Remove-Item -Force
-          if (Test-Path (Join-Path $out 'web.config')) { Remove-Item (Join-Path $out 'web.config') -Force }
+          # ASP.NET Core Module needs web.config when hosted in IIS.
+          # dotnet publish generates it for the Web SDK. Keep it in the package.
+          $webConfig = Join-Path $out 'web.config'
+          if (-not (Test-Path $webConfig)) { throw 'Missing web.config from dotnet publish output. IIS package is invalid.' }
+          [xml]$xml = Get-Content -Path $webConfig -Raw
+          $asp = $xml.SelectSingleNode('/configuration/system.webServer/aspNetCore | /configuration/location/system.webServer/aspNetCore')
+          if ($null -eq $asp) { throw 'web.config is missing aspNetCore configuration at supported IIS paths.' }
+          if ($asp.processPath -notin @('dotnet', '.\CajaAhorro.exe')) { throw "Unexpected processPath: $($asp.processPath)" }
+          if ($asp.processPath -eq 'dotnet' -and $asp.arguments -notmatch 'CajaAhorro\.dll') { throw 'web.config does not reference CajaAhorro.dll.' }
+          foreach ($required in @('CajaAhorro.dll', 'CajaAhorro.runtimeconfig.json', 'CajaAhorro.deps.json')) {
+            if (-not (Test-Path (Join-Path $out $required))) { throw "Missing publish file: $required" }
+          }
+          Write-Host 'IIS publish output validated: web.config and required assemblies present.'
           $sha = '${{ github.sha }}'
           Set-Content -Path (Join-Path $out 'release-manifest.txt') -Value @("Repository=west2084/cajaahorro", "Commit=$sha", "Branch=${{ github.ref_name }}", "Build=Release", "Environment=development-package", "Deployment=NOT_PERFORMED")
           $zip = Join-Path '${{ runner.temp }}' 'cajaahorro-${{ github.run_number }}.zip'
