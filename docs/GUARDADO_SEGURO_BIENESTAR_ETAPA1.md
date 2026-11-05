@@ -9,7 +9,7 @@
 - No elimina filas duplicadas de RFC: una persona puede tener dos contratos.
 - Filas con estatus distinto de LIQUIDADO quedan como incidencia. El total impreso en la hoja no se utiliza.
 - No se escribe en `Ahorros`, `Socios`, `Prestamos`, `AhorroEncabezados` ni en tablas contables. Tampoco habilita botones de aplicación o rollback.
-- Esta etapa NO modifica la precarga UI existente: el servicio todavía no está invocado desde la pantalla.
+- La pantalla de precarga incorpora el botón **Registrar precarga (sin afectar saldos)**, visible solo cuando el servidor se ejecuta en `Development` y el usuario es `Administrador`. No es un botón de aplicación contable.
 
 ## Preparación controlada de desarrollo
 1. Crear respaldo verificable de la BD **de desarrollo** y comprobar que se puede restaurar.
@@ -28,7 +28,7 @@
 - No se han ejecutado estas pruebas contra SQL Server al crear el PR.
 
 ## Etapas posteriores (no incluidas)
-- Habilitar acción de guardar precarga en UI solamente para administradores, en desarrollo, con confirmación explícita y auditoría de usuario.
+- Validar la acción de registrar precarga desde UI en desarrollo con usuario administrador, revisando el resultado y la bitácora. Verificar que otros roles no puedan usarla.
 - Diseñar referencia de institución y contrato, snapshot por movimiento y migración de `Ahorros` que preserve las aportaciones SSZ y Bienestar sin sobrescritura.
 - Integrar histórico por archivo, detalle de rechazados, aplicación contable transaccional y reversión por lote con bloqueos de dependencias.
 - Probar en desarrollo y obtener autorización antes de publicar en producción.
