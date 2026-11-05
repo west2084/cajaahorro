@@ -105,6 +105,51 @@
             }
         </div>
 
+        @if (analisis.EsDetalleBienestar && analisis.ResumenDetalle is not null)
+        {
+            <div class="aviso-info" style="margin-top:1rem; border-left:3px solid #2563eb;">
+                <i class="ti ti-info-circle"></i>
+                <div>
+                    <strong>IMSS Bienestar — primera hoja: @analisis.ResumenDetalle.Hoja</strong>
+                    <p style="margin:.35rem 0;">La estructura se validó por encabezados, independientemente del nombre de la pestaña. Se contabilizan RFC con importe positivo y estatus LIQUIDADO. CHEQUE o CANCELADO se envían a incidencias.</p>
+                    <p style="margin:.35rem 0;"><strong>Precarga informativa:</strong> la aplicación definitiva todavía está deshabilitada para proteger las aportaciones de SSZ y los contratos múltiples.</p>
+                </div>
+            </div>
+            <div class="table-container" style="margin-top:.75rem;">
+                <table class="tabla">
+                    <thead>
+                        <tr><th>Concepto</th><th>QNA/año</th><th class="text-right">Registros válidos</th><th class="text-right">Importe calculado</th><th>Fecha de pago</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var item in analisis.ResumenDetalle.Resumenes)
+                    {
+                        <tr>
+                            <td>@item.Concepto</td>
+                            <td>@item.Quincena.ToString("D2")/@item.Anio</td>
+                            <td class="text-right">@item.RegistrosValidos</td>
+                            <td class="text-right">@item.Importe.ToString("C")</td>
+                            <td>@item.FechaPago?.ToString("dd/MM/yyyy")</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top:.75rem;font-size:13px;">
+                <strong>Incidencias: @analisis.ResumenDetalle.Incidencias.Count</strong>
+                @if (analisis.ResumenDetalle.Incidencias.Count > 0)
+                {
+                    <details>
+                        <summary>Ver filas que no se aplicarían</summary>
+                        <ul>
+                        @foreach (var incidencia in analisis.ResumenDetalle.Incidencias.Take(100))
+                        {
+                            <li>Fila @incidencia.Fila — @incidencia.RFC — @incidencia.Concepto: @incidencia.Motivo</li>
+                        }
+                        </ul>
+                    </details>
+                }
+            </div>
+        }
         @if (analisis.EsCifrasBienestar)
         {
             <div class="aviso-info" style="margin-top:1rem; border-left:3px solid #d97706; background:#fffbeb;">
@@ -204,7 +249,7 @@
         <div class="form-actions" style="margin-top:1.25rem;">
             <button class="btn-primary"
                     @onclick="Importar"
-                    disabled="@(!analisis.FormatoValido || analisis.EsCifrasBienestar || cargando || (cargaPrevia is not null && !confirmarReimportacion))">
+                    disabled="@(!analisis.FormatoValido || (analisis.EsCifrasBienestar || analisis.EsDetalleBienestar) || cargando || (cargaPrevia is not null && !confirmarReimportacion))">
                 @if (cargando)
                 {
                     <span><i class="ti ti-loader-2"></i> Importando...</span>
@@ -375,6 +420,7 @@
             ms.Position = 0;
 
             analisis = AhorroImportService.Analizar(ms);
+            if (analisis.EsDetalleBienestar) return;
             if (analisis.EsCifrasBienestar)
             {
                 conceptosSeleccionados = analisis.ResumenCifras
@@ -410,7 +456,7 @@
 
     private async Task Importar()
     {
-        if (archivoRef is null || analisis is null || analisis.EsCifrasBienestar) return;
+        if (archivoRef is null || analisis is null || analisis.EsCifrasBienestar || analisis.EsDetalleBienestar) return;
 
         cargando  = true;
         resultado = null;
