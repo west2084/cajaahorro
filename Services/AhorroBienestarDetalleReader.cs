@@ -69,7 +69,6 @@ public static class AhorroBienestarDetalleReader
             var r = fila.RowNumber();
             string rfc = hoja.Cell(r, 16).GetValue<string>().Trim().ToUpperInvariant();
             string concepto = hoja.Cell(r, 28).GetValue<string>().Trim().ToUpperInvariant();
-            string nombre = hoja.Cell(r, 21).GetValue<string>().Trim();
             string plaza = hoja.Cell(r, 22).GetValue<string>().Trim();
             string estatus = hoja.Cell(r, 33).GetValue<string>().Trim().ToUpperInvariant();
             var importe = ObtenerImporte(hoja.Cell(r, 31));
@@ -86,8 +85,6 @@ public static class AhorroBienestarDetalleReader
                 rechazo = "Concepto no reconocido";
             else if (rfc.Length is not (12 or 13) || !rfc.All(char.IsLetterOrDigit))
                 rechazo = "RFC inválido";
-            else if (string.IsNullOrWhiteSpace(nombre))
-                rechazo = "Nombre del trabajador vacío";
             else if (!importe.HasValue || importe <= 0)
                 rechazo = "Importe vacío, negativo o no numérico";
             else if (quincena is < 1 or > 24)
@@ -113,8 +110,7 @@ public static class AhorroBienestarDetalleReader
 
             resumen.RegistrosValidos++;
             resumen.Importe += importe!.Value;
-            // La plaza se conserva como referencia de contrato en la futura
-            // bitácora; no se agrupa por RFC ni se eliminan sus duplicados.
+                // La plaza se conservará en la futura bitácora de importación.
             _ = plaza;
         }
 
