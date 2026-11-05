@@ -66,6 +66,8 @@ public class AhorroImportService
         // El formato CAP Bienestar contiene dos ciclos y dos quincenas.
         // Su deteccion NO implica permiso de importacion: primero debe implementarse
         // la separacion por fuente para evitar sobrescritura de ahorros de SSZ.
+        public bool EsDetalleBienestar { get; set; }
+        public AhorroBienestarDetalleReader.Analisis? ResumenDetalle { get; set; }
         public bool EsCifrasBienestar { get; set; }
         public List<AhorroBienestarCifrasReader.Resumen> ResumenCifras { get; set; } = new();
     }
@@ -84,6 +86,20 @@ public class AhorroImportService
         try
         {
             using var wb = new XLWorkbook(excelStream);
+            if (AhorroBienestarDetalleReader.EsFormato(wb))
+            {
+                res.FormatoDetectado = "IMSS BIENESTAR - DETALLE POR CONCEPTO";
+                res.EsDetalleBienestar = true;
+                res.ResumenDetalle = AhorroBienestarDetalleReader.Analizar(wb);
+                res.FormatoValido = true;
+                res.NombrePestana = res.ResumenDetalle.Hoja;
+                res.CicloDetectado = null; // Varios conceptos en una sola hoja.
+                res.Log.Add($"[INFO] Detalle Bienestar: {res.ResumenDetalle.FilasExaminadas} filas examinadas.");
+                foreach (var item in res.ResumenDetalle.Resumenes)
+                    res.Log.Add($"[OK] {item.Concepto} QNA {item.Quincena:D2}/{item.Anio}: {item.RegistrosValidos} movimientos; importe {item.Importe:C}");
+                res.Log.Add($"[INFO] Incidencias: {res.ResumenDetalle.Incidencias.Count}");
+                return res;
+            }
             if (AhorroBienestarCifrasReader.EsFormato(wb))
             {
                 res.FormatoDetectado = "IMSS BIENESTAR - CIFRAS CAP (AAFA/AAFB)";
@@ -212,6 +228,8 @@ public class AhorroImportService
         try
         {
             using var wb = new XLWorkbook(excelStream);
+            if (AhorroBienestarDetalleReader.EsFormato(wb))
+                throw new InvalidOperationException("Archivo de detalle Bienestar reconocido, pero su aplicación está bloqueada hasta registrar retenciones independientes por institución y contrato. No se modificó la base de datos.");
             if (AhorroBienestarCifrasReader.EsFormato(wb))
                 throw new InvalidOperationException("Este libro Bienestar CAP fue reconocido, pero su importacion requiere primero separar aportaciones por institucion en la base de datos. No se guardo ninguna retencion.");
             var hoja = wb.Worksheet(1);
