@@ -35,6 +35,7 @@ builder.Services.AddScoped<ExpedienteService>();
 builder.Services.AddScoped<RetencionService>();
 builder.Services.AddScoped<RetencionImportService>();
 builder.Services.AddScoped<AhorroImportService>();
+builder.Services.AddScoped<AhorroBienestarGuardadoService>();
 builder.Services.AddScoped<UsuarioService>();
 builder.Services.AddScoped<ReporteService>();
 
