@@ -1,6 +1,9 @@
 @page "/reportes"
 @inject NavigationManager Nav
 @inject CajaAhorro.Data.AppDbContext Db
+@inject ReportePrecargaBienestarService BienestarReportes
+@inject IWebHostEnvironment Entorno
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthState
 
 <PageTitle>Reportes — Caja de Ahorro</PageTitle>
 
@@ -81,6 +84,58 @@ else
             </button>
         </div>
 
+        @if (Entorno.IsDevelopment())
+        {
+            <AuthorizeView Roles="Administrador">
+                <Authorized>
+                    <div class="form-card">
+                        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.35rem;">
+                            <i class="ti ti-file-analytics" style="font-size:1.5rem;color:#2563eb;"></i>
+                            <span style="font-weight:600;">IMSS Bienestar — precargas</span>
+                        </div>
+                        <p class="text-muted" style="font-size:13px;margin:.25rem 0 1rem;">
+                            Descarga el archivo de conciliación con resumen, todos los movimientos,
+                            rechazados y motivos. <strong>Son precargas; todavía no se aplican a saldos.</strong>
+                        </p>
+                        @if (!string.IsNullOrWhiteSpace(errorBienestar))
+                        {
+                            <div class="alert-error">@errorBienestar</div>
+                        }
+                        else if (!cargasBienestar.Any())
+                        {
+                            <p class="text-muted" style="font-size:12px;">No hay precargas de Bienestar registradas.</p>
+                        }
+                        else
+                        {
+                            <div class="form-group">
+                                <label>Archivo registrado</label>
+                                <select class="form-control" @bind="cargaBienestarId">
+                                    @foreach (var carga in cargasBienestar)
+                                    {
+                                        <option value="@carga.Id">
+                                            #@carga.Id · @carga.NombreArchivo · @carga.FechaCargaUtc.ToString("dd/MM/yyyy HH:mm") UTC
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                            var seleccionada = cargasBienestar.FirstOrDefault(x => x.Id == cargaBienestarId);
+                            @if (seleccionada is not null)
+                            {
+                                <div style="font-size:12px;margin-bottom:.75rem;">
+                                    <strong>@seleccionada.RegistrosValidosAhorro</strong> movimientos válidos ·
+                                    <strong>@seleccionada.ImporteAhorro.ToString("C")</strong> en precarga ·
+                                    <strong>@seleccionada.RegistrosConIncidencia</strong> rechazados de validación
+                                </div>
+                            }
+                            <button class="btn-primary" style="width:100%;" @onclick="DescargarBienestar">
+                                <i class="ti ti-file-spreadsheet"></i> Descargar conciliación Excel
+                            </button>
+                        }
+                    </div>
+                </Authorized>
+            </AuthorizeView>
+        }
+
         @* ── 3. Ahorradores ─────────────────────────────────────────────── *@
         <div class="form-card">
             <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.35rem;">
@@ -135,6 +190,16 @@ else
     private string creditosStatus = "";
     private int ahorroAnio = DateTime.Today.Year;
     private string ahorroCiclo = "";
+    private List<AhorroBienestarCarga> cargasBienestar = new();
+    private long cargaBienestarId;
+    private string errorBienestar = "";
+
+    private void DescargarBienestar()
+    {
+        if (cargaBienestarId > 0 && Entorno.IsDevelopment())
+            Nav.NavigateTo($"/api/reportes/bienestar-precarga/{cargaBienestarId}", forceLoad: true);
+    }
+
 
     protected override async Task OnInitializedAsync()
     {
@@ -161,6 +226,22 @@ else
         if (!aniosAhorro.Contains(ahorroAnio))
             ahorroAnio = aniosAhorro.First();
 
+        if (Entorno.IsDevelopment())
+        {
+            var auth = await AuthState.GetAuthenticationStateAsync();
+            if (auth.User.IsInRole("Administrador"))
+            {
+                try
+                {
+                    cargasBienestar = await BienestarReportes.HistorialAsync();
+                    cargaBienestarId = cargasBienestar.FirstOrDefault()?.Id ?? 0;
+                }
+                catch (Exception)
+                {
+                    errorBienestar = "No fue posible consultar el historial de precargas. Verifica el esquema de la BD de desarrollo.";
+                }
+            }
+        }
         cargando = false;
     }
 
