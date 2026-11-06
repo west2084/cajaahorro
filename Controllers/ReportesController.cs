@@ -15,11 +15,13 @@ public class ReportesController : ControllerBase
 
     private readonly ReporteService _reportes;
     private readonly ReportePrecargaBienestarService _bienestar;
+    private readonly IHostEnvironment _env;
 
-    public ReportesController(ReporteService reportes, ReportePrecargaBienestarService bienestar)
+    public ReportesController(ReporteService reportes, ReportePrecargaBienestarService bienestar, IHostEnvironment env)
     {
         _reportes = reportes;
         _bienestar = bienestar;
+        _env = env;
     }
 
     /// <summary>Reporte de créditos otorgados. Filtros opcionales: ?anio=2025&status=Activo</summary>
@@ -80,6 +82,7 @@ public class ReportesController : ControllerBase
     [Authorize(Roles = "Administrador")]
     public async Task<IActionResult> BienestarPrecarga(long cargaId)
     {
+        if (!_env.IsDevelopment()) return NotFound();
         if (cargaId <= 0) return BadRequest();
         try
         {
