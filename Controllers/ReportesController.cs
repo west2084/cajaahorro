@@ -14,8 +14,13 @@ public class ReportesController : ControllerBase
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
     private readonly ReporteService _reportes;
+    private readonly ReportePrecargaBienestarService _bienestar;
 
-    public ReportesController(ReporteService reportes) => _reportes = reportes;
+    public ReportesController(ReporteService reportes, ReportePrecargaBienestarService bienestar)
+    {
+        _reportes = reportes;
+        _bienestar = bienestar;
+    }
 
     /// <summary>Reporte de créditos otorgados. Filtros opcionales: ?anio=2025&status=Activo</summary>
     [HttpGet("creditos")]
@@ -67,4 +72,25 @@ public class ReportesController : ControllerBase
 
         return File(bytes, MimeXlsx, nombre);
     }
+    /// <summary>
+    /// Descarga auditable de una precarga Bienestar y su conciliación.
+    /// No representa importación contable. Incluye RFC/CURP; acceso administrativo.
+    /// </summary>
+    [HttpGet("bienestar-precarga/{cargaId:long}")]
+    [Authorize(Roles = "Administrador")]
+    public async Task<IActionResult> BienestarPrecarga(long cargaId)
+    {
+        if (cargaId <= 0) return BadRequest();
+        try
+        {
+            var bytes = await _bienestar.ExportarExcelAsync(cargaId);
+            Response.Headers["Cache-Control"] = "no-store";
+            return File(bytes, MimeXlsx, $"Bienestar_Precarga_{cargaId}_{DateTime.Now:yyyyMMdd}.xlsx");
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound("No existe la precarga solicitada.");
+        }
+    }
+
 }
