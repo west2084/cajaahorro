@@ -107,6 +107,7 @@ else
                         }
                         else
                         {
+                            var seleccionada = cargasBienestar.FirstOrDefault(x => x.Id == cargaBienestarId);
                             <div class="form-group">
                                 <label>Archivo registrado</label>
                                 <select class="form-control" @bind="cargaBienestarId">
@@ -118,7 +119,6 @@ else
                                     }
                                 </select>
                             </div>
-                            var seleccionada = cargasBienestar.FirstOrDefault(x => x.Id == cargaBienestarId);
                             @if (seleccionada is not null)
                             {
                                 <div style="font-size:12px;margin-bottom:.75rem;">
