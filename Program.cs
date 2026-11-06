@@ -38,6 +38,7 @@ builder.Services.AddScoped<AhorroImportService>();
 builder.Services.AddScoped<AhorroBienestarGuardadoService>();
 builder.Services.AddScoped<UsuarioService>();
 builder.Services.AddScoped<ReporteService>();
+builder.Services.AddScoped<ReportePrecargaBienestarService>();
 
 var app = builder.Build();
 
